@@ -5,6 +5,7 @@ import {
   Github, FileText, Palette, FolderOpen, Link as LinkIcon,
   Clock, CheckSquare, Plus, Check, Square, AlertCircle, X
 } from 'lucide-react';
+import { sanitizeText, validateLength, isInputSafe } from '../utils/security';
 
 /**
  * HackathonCard Component
@@ -87,10 +88,25 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate }) => {
         return;
     }
 
+    // SECURITY: Validate and sanitize task input
+    const sanitizedTask = validateLength(newTask.trim(), 200);
+    
+    if (!isInputSafe(sanitizedTask)) {
+      alert('Security: Invalid characters detected in task.');
+      return;
+    }
+
     const currentChecklist = hackathon.checklist || [];
+    
+    // SECURITY: Limit checklist size
+    if (currentChecklist.length >= 50) {
+      alert('Maximum 50 tasks allowed per hackathon.');
+      return;
+    }
+
     const updatedChecklist = [
       ...currentChecklist, 
-      { id: Date.now(), text: newTask, completed: false }
+      { id: Date.now(), text: sanitizedTask, completed: false }
     ];
 
     onUpdate(hackathon.id, { checklist: updatedChecklist });
@@ -149,7 +165,7 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate }) => {
       <div className="relative z-10 p-5">
         <div className="flex items-start justify-between mb-3">
           <h3 className="text-xl font-bold text-gray-100 flex-1 pr-2 line-clamp-2">
-            {hackathon.title}
+            {sanitizeText(hackathon.title)}
           </h3>
           <div className="flex gap-2">
             {/* Edit Button */}
@@ -197,7 +213,7 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate }) => {
 
         {/* Description */}
         <p className="text-gray-400 text-sm mb-4 line-clamp-2">
-          {hackathon.description || 'No description provided.'}
+          {sanitizeText(hackathon.description) || 'No description provided.'}
         </p>
 
         {/* Progress Bar (Visible if tasks exist) */}
@@ -270,9 +286,9 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate }) => {
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className="text-sm font-medium text-gray-300 group-hover:text-white truncate">
-                      {resource.title}
+                      {sanitizeText(resource.title || resource.label)}
                     </h4>
-                    <p className="text-xs text-gray-500 truncate">{resource.type}</p>
+                    <p className="text-xs text-gray-500 truncate">{sanitizeText(resource.type)}</p>
                   </div>
                   <ExternalLink size={14} className="text-gray-600 group-hover:text-gray-400" />
                 </a>
@@ -314,7 +330,7 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate }) => {
                              <Check size={12} strokeWidth={3} />
                           </button>
                           <span className={`text-sm flex-1 break-words ${task.completed ? 'text-gray-500 line-through' : 'text-gray-300'}`}>
-                             {task.text}
+                             {sanitizeText(task.text)}
                           </span>
                           <button 
                              onClick={() => removeTask(task.id)}

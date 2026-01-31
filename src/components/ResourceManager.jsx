@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Trash2, X } from 'lucide-react';
+import { sanitizeURL, sanitizeText, validateLength, isInputSafe } from '../utils/security';
 
 /**
  * ResourceManager Component
@@ -30,17 +31,42 @@ const ResourceManager = ({ resources, onChange }) => {
       return;
     }
 
-    // Add URL protocol if missing
-    let formattedUrl = newResource.url.trim();
-    if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
-      formattedUrl = 'https://' + formattedUrl;
+    // SECURITY: Validate label
+    const sanitizedLabel = validateLength(newResource.label.trim(), 100);
+    if (!isInputSafe(sanitizedLabel)) {
+      alert('Security Warning: Resource label contains invalid characters');
+      return;
+    }
+
+    // SECURITY: Validate and sanitize URL
+    const sanitizedUrl = sanitizeURL(newResource.url.trim());
+    
+    if (!sanitizedUrl) {
+      alert('Security Warning: Invalid or dangerous URL protocol detected');
+      return;
+    }
+
+    // SECURITY: Validate URL format
+    const urlPattern = /^https?:\/\/.+/i;
+    if (!urlPattern.test(sanitizedUrl)) {
+      alert('Security Warning: Please enter a valid HTTP/HTTPS URL');
+      return;
+    }
+
+    // SECURITY: Limit number of resources
+    if (resources.length >= 20) {
+      alert('Maximum 20 resources allowed per hackathon');
+      return;
     }
 
     const resource = {
       id: Date.now().toString(),
-      label: newResource.label.trim(),
-      url: formattedUrl,
-      type: newResource.type
+      label: sanitizedLabel,
+      url: sanitizedUrl,
+      link: sanitizedUrl, // For backward compatibility
+      title: sanitizedLabel, // For backward compatibility
+      type: newResource.type,
+      addedAt: new Date().toISOString() // SECURITY: Audit trail
     };
 
     onChange([...resources, resource]);
@@ -88,19 +114,19 @@ const ResourceManager = ({ resources, onChange }) => {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-sm font-medium text-gray-200 truncate">
-                    {resource.label}
+                    {sanitizeText(resource.label)}
                   </span>
                   <span className="text-xs px-2 py-0.5 bg-gray-600 text-gray-300 rounded">
-                    {resource.type}
+                    {sanitizeText(resource.type)}
                   </span>
                 </div>
                 <a
-                  href={resource.url}
+                  href={sanitizeURL(resource.url)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-xs text-primary-400 hover:text-primary-300 truncate block"
                 >
-                  {resource.url}
+                  {sanitizeText(resource.url)}
                 </a>
               </div>
               <motion.button

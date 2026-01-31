@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, User, Users, Type, List, Link as LinkIcon, Calendar } from 'lucide-react';
 import ResourceManager from './ResourceManager';
+import { sanitizeText, validateLength, isInputSafe, isValidDate } from '../utils/security';
 
 // --- STYLED INPUT COMPONENT ---
 const InputField = ({ label, icon: Icon, ...props }) => (
@@ -82,12 +83,50 @@ const AddModal = ({ isOpen, onClose, onSave, editingHackathon }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!formData.title.trim()) return;
-
+    
+    // SECURITY: Comprehensive input validation
+    const errors = [];
+    
+    // Validate title
+    if (!formData.title.trim()) {
+      errors.push('Title is required');
+    } else if (formData.title.length > 100) {
+      errors.push('Title must be less than 100 characters');
+    } else if (!isInputSafe(formData.title)) {
+      errors.push('Title contains invalid characters');
+    }
+    
+    // Validate description
+    if (formData.description && formData.description.length > 1000) {
+      errors.push('Description must be less than 1000 characters');
+    } else if (formData.description && !isInputSafe(formData.description)) {
+      errors.push('Description contains invalid characters');
+    }
+    
+    // Validate type
+    if (!['solo', 'team'].includes(formData.type)) {
+      errors.push('Invalid project type');
+    }
+    
+    // Validate status
+    const validStatuses = ['Upcoming', 'Ongoing', 'Completed'];
+    if (!validStatuses.includes(formData.status)) {
+      errors.push('Invalid status');
+    }
+    
+    if (errors.length > 0) {
+      alert('Validation Errors:\n' + errors.join('\n'));
+      return;
+    }
+    
+    // SECURITY: Sanitize all inputs
     const hackathonData = {
       ...formData,
-      title: formData.title.trim(),
-      description: formData.description.trim()
+      title: validateLength(formData.title.trim(), 100),
+      description: validateLength(formData.description.trim(), 1000),
+      // Remove dangerous properties
+      __proto__: undefined,
+      constructor: undefined
     };
 
     if (editingHackathon) {

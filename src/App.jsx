@@ -9,6 +9,7 @@ import TeamManager from './components/TeamManager';
 import useFirestore from './hooks/useFirestore';
 import { useAuth } from './contexts/AuthContext';
 import { useTeam } from './contexts/TeamContext';
+import { sanitizeObject, addHackathonLimiter, updateHackathonLimiter } from './utils/security';
 
 /**
  * Main App Component
@@ -40,12 +41,22 @@ function App() {
    * @param {Object} hackathon - The hackathon object to add
    */
   const handleAddHackathon = async (hackathon) => {
+    // SECURITY: Rate limiting
+    if (!addHackathonLimiter.canProceed('add')) {
+      alert('Security: Too many requests. Please wait a moment.');
+      return;
+    }
+
     try {
+      // SECURITY: Sanitize input and prevent prototype pollution
+      const allowedKeys = ['title', 'status', 'description', 'type', 'resources', 'checklist', 'startDate', 'endDate', 'deadline', 'notes'];
+      const sanitizedHackathon = sanitizeObject(hackathon, allowedKeys);
+
       // No need to generate ID - Firestore does this automatically
       // But we need to add ownerId for ownership and TeamId if in team mode
       const hackathonData = {
-        ...hackathon,
-        resources: hackathon.resources || [],
+        ...sanitizedHackathon,
+        resources: sanitizedHackathon.resources || [],
         ownerId: currentUser.uid,
         // If currentTeam is selected, associate with teamId, else null
         teamId: currentTeam ? currentTeam.id : null, 
@@ -68,8 +79,22 @@ function App() {
    * @param {Object} updatedData - The new data
    */
   const handleUpdateHackathon = async (id, updatedData) => {
+    // SECURITY: Rate limiting
+    if (!updateHackathonLimiter.canProceed('update')) {
+      alert('Security: Too many requests. Please wait a moment.');
+      return;
+    }
+
     try {
-      await updateHackathon(id, updatedData);
+      // SECURITY: Prevent prototype pollution
+      const allowedKeys = [
+        'id', 'title', 'description', 'status', 'startDate', 'endDate', 'deadline',
+        'resources', 'checklist', 'timers', 'links', 'notes', 'type', 'teamId'
+      ];
+      
+      const sanitizedUpdates = sanitizeObject(updatedData, allowedKeys);
+      
+      await updateHackathon(id, sanitizedUpdates);
       setIsModalOpen(false);
       setEditingHackathon(null);
     } catch (error) {
