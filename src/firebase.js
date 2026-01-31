@@ -24,6 +24,16 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
+// Validate Firebase configuration
+if (!firebaseConfig.apiKey || !firebaseConfig.authDomain || !firebaseConfig.projectId) {
+  console.error('❌ Firebase configuration is incomplete. Check your .env file.');
+  console.error('Missing values:', {
+    apiKey: !firebaseConfig.apiKey ? 'MISSING' : 'OK',
+    authDomain: !firebaseConfig.authDomain ? 'MISSING' : 'OK',
+    projectId: !firebaseConfig.projectId ? 'MISSING' : 'OK',
+  });
+}
+
 /**
  * Initialize Firebase
  * This creates a Firebase app instance using your configuration
@@ -50,6 +60,25 @@ export const googleProvider = new GoogleAuthProvider();
  * Export the app instance for other Firebase services (Auth, Storage, etc.)
  */
 export default app;
+
+/**
+ * Helper function to check if Firebase is properly configured
+ */
+export function checkFirebaseConfig() {
+  const config = {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  };
+  
+  return Object.entries(config).every(([key, value]) => {
+    if (!value) {
+      console.error(`❌ ${key} is not set in .env file`);
+      return false;
+    }
+    return true;
+  });
+}
 
 /**
  * Firestore Database Structure:

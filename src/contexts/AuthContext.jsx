@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
-  signInWithPopup, 
+  signInWithPopup,
   signOut, 
   onAuthStateChanged 
 } from 'firebase/auth';
@@ -17,6 +17,10 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   function login() {
+    // Configure popup for better compatibility
+    googleProvider.setCustomParameters({
+      prompt: 'select_account'
+    });
     return signInWithPopup(auth, googleProvider);
   }
 

@@ -54,6 +54,20 @@ export default function Login() {
       await login();
     } catch (error) {
       console.error("Failed to log in", error);
+      
+      // Provide more helpful error messages
+      let errorMessage = "Failed to log in. ";
+      if (error.code === 'auth/internal-error') {
+        errorMessage += "Please ensure Google Sign-In is enabled in Firebase Console (Authentication > Sign-in method > Google).";
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        errorMessage = "Sign-in popup was closed. Please try again.";
+      } else if (error.code === 'auth/unauthorized-domain') {
+        errorMessage += "This domain is not authorized. Add it in Firebase Console (Authentication > Settings > Authorized domains).";
+      } else {
+        errorMessage += error.message;
+      }
+      
+      alert(errorMessage);
       setLoading(false);
     }
   };
