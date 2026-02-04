@@ -6,6 +6,7 @@ import AddModal from './components/AddModal';
 import Login from './components/Login';
 import LandingPage from './components/LandingPage';
 import TeamManager from './components/TeamManager';
+import NotificationBell from './components/NotificationBell';
 import useFirestore from './hooks/useFirestore';
 import { useAuth } from './contexts/AuthContext';
 import { useTeam } from './contexts/TeamContext';
@@ -88,7 +89,7 @@ function App() {
     try {
       // SECURITY: Prevent prototype pollution
       const allowedKeys = [
-        'id', 'title', 'description', 'status', 'startDate', 'endDate', 'deadline',
+        'id', 'title', 'description', 'status', 'startDate', 'endDate', 'deadline','tasks',
         'resources', 'checklist', 'timers', 'links', 'notes', 'type', 'teamId'
       ];
       
@@ -189,6 +190,9 @@ function App() {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
             >
+               {/* Notification Bell */}
+               <NotificationBell hackathons={hackathons || []} />
+
                <button
                   onClick={() => setIsTeamManagerOpen(!isTeamManagerOpen)}
                   className={`p-2.5 border rounded-xl transition-all flex items-center gap-2 ${

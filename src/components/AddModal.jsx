@@ -55,10 +55,11 @@ const AddModal = ({ isOpen, onClose, onSave, editingHackathon }) => {
     status: 'Upcoming',
     description: '',
     type: 'solo',
-    resources: []
+    resources: [],
+    deadline: '' // New field for deadline
   });
 
-  const statusOptions = ['Upcoming', 'Ongoing', 'Completed'];
+  const statusOptions = ['Upcoming', 'Ongoing', 'Planning', 'Completed'];
 
   // Populate form
   useEffect(() => {
@@ -68,7 +69,8 @@ const AddModal = ({ isOpen, onClose, onSave, editingHackathon }) => {
         status: editingHackathon.status || 'Upcoming',
         description: editingHackathon.description || '',
         type: editingHackathon.type || 'solo',
-        resources: editingHackathon.resources || []
+        resources: editingHackathon.resources || [],
+        deadline: editingHackathon.deadline || '' // SAFETY: Optional chaining for backward compatibility
       });
     } else {
       setFormData({
@@ -76,7 +78,8 @@ const AddModal = ({ isOpen, onClose, onSave, editingHackathon }) => {
         status: 'Upcoming',
         description: '',
         type: 'solo',
-        resources: []
+        resources: [],
+        deadline: ''
       });
     }
   }, [editingHackathon]);
@@ -245,6 +248,21 @@ const AddModal = ({ isOpen, onClose, onSave, editingHackathon }) => {
                         </option>
                       ))}
                     </SelectField>
+                  </div>
+
+                  {/* Deadline Field (Optional) */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-heading font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                      <Calendar size={12} />
+                      Deadline (Optional)
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={formData.deadline}
+                      onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
+                      className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-3 text-white font-body focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all duration-300"
+                    />
+                    <p className="text-xs text-gray-500">Set a deadline to prioritize this project</p>
                   </div>
 
                   {/* Description */}
