@@ -5,7 +5,7 @@ import {
   Github, FileText, Palette, FolderOpen, Link as LinkIcon,
   Clock, CheckSquare, Plus, Check, X, Sparkles, LayoutGrid, ListTodo, Bookmark
 } from 'lucide-react';
-import { sanitizeText, validateLength, isInputSafe } from '../utils/security';
+import { sanitizeText, validateLength, isInputSafe, sanitizeURL } from '../utils/security';
 
 /**
  * 🎨 GLASSMORPHIC PREMIUM WITH TABBED NAVIGATION
@@ -17,12 +17,15 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
   const [newTask, setNewTask] = useState('');
   const [newTaskItem, setNewTaskItem] = useState('');
   const [newTaskDeadline, setNewTaskDeadline] = useState('');
+  const [newResource, setNewResource] = useState({ label: '', url: '', type: 'Other' });
   const [timeLeft, setTimeLeft] = useState(null);
   const [isUrgent, setIsUrgent] = useState(false);
   const [isOverdue, setIsOverdue] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   
   const saveToFirebase = updateHackathon || onUpdate;
+  
+  const resourceTypes = ['GitHub', 'Canva', 'PPT', 'Drive', 'Other'];
 
   // Enhanced status styling
   const statusStyles = {
@@ -160,6 +163,67 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
      } catch (error) {
        console.error('❌ Failed to delete task:', error);
      }
+  };
+
+  const handleAddResource = async (e) => {
+    e.preventDefault();
+    if (!newResource.label.trim() || !newResource.url.trim() || !saveToFirebase) return;
+
+    const sanitizedLabel = validateLength(newResource.label.trim(), 100);
+    if (!isInputSafe(sanitizedLabel)) {
+      alert('Security: Invalid characters detected in resource label.');
+      return;
+    }
+
+    const sanitizedUrl = sanitizeURL(newResource.url.trim());
+    if (!sanitizedUrl) {
+      alert('Security: Invalid or dangerous URL protocol detected.');
+      return;
+    }
+
+    const urlPattern = /^https?:\/\/.+/i;
+    if (!urlPattern.test(sanitizedUrl)) {
+      alert('Please enter a valid HTTP/HTTPS URL.');
+      return;
+    }
+
+    const currentResources = hackathon.resources || [];
+    if (currentResources.length >= 20) {
+      alert('Maximum 20 resources allowed per hackathon.');
+      return;
+    }
+
+    const resourceObj = {
+      id: Date.now().toString(),
+      label: sanitizedLabel,
+      title: sanitizedLabel,
+      url: sanitizedUrl,
+      link: sanitizedUrl,
+      type: newResource.type,
+      addedAt: new Date().toISOString()
+    };
+
+    const updatedResources = [...currentResources, resourceObj];
+
+    try {
+      await saveToFirebase(hackathon.id, { resources: updatedResources });
+      setNewResource({ label: '', url: '', type: 'Other' });
+    } catch (error) {
+      console.error('❌ Failed to save resource to Firebase:', error);
+      alert('Failed to save resource. Please try again.');
+    }
+  };
+
+  const removeResource = async (resourceId) => {
+    if (!saveToFirebase) return;
+    const currentResources = hackathon.resources || [];
+    const updatedResources = currentResources.filter(resource => resource.id !== resourceId);
+    
+    try {
+      await saveToFirebase(hackathon.id, { resources: updatedResources });
+    } catch (error) {
+      console.error('❌ Failed to delete resource:', error);
+    }
   };
 
   const totalChecklistTasks = hackathon.checklist?.length || 0;
@@ -539,41 +603,94 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
                 exit="exit"
                 className="p-6"
               >
-                {(!hackathon.resources || hackathon.resources.length === 0) ? (
-                  <div className="text-center py-12">
-                    <div className="w-16 h-16 rounded-full bg-gray-800/60 border border-gray-700/50 flex items-center justify-center mx-auto mb-3">
-                      <Bookmark size={28} className="text-gray-600" />
+                <div className="space-y-3 mb-5 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                  {(!hackathon.resources || hackathon.resources.length === 0) && (
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 rounded-full bg-gray-800/60 border border-gray-700/50 flex items-center justify-center mx-auto mb-3">
+                        <Bookmark size={28} className="text-gray-600" />
+                      </div>
+                      <p className="text-sm text-gray-500 font-medium">No resources added</p>
+                      <p className="text-xs text-gray-600 mt-1">Add your first resource below 🔗</p>
                     </div>
-                    <p className="text-sm text-gray-500 font-medium">No resources added</p>
-                    <p className="text-xs text-gray-600 mt-1">Add resources via the edit menu</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3 max-h-80 overflow-y-auto pr-2 custom-scrollbar">
-                    {hackathon.resources.map((resource, index) => (
-                      <motion.a
-                        key={index}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.05 }}
-                        href={resource.link}
+                  )}
+                  
+                  {hackathon.resources?.map((resource, index) => (
+                    <motion.div
+                      key={resource.id || index}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className="flex items-center gap-4 p-4 rounded-xl hover:bg-gray-800/60 transition-all duration-200 group border border-transparent hover:border-gray-700/50 backdrop-blur-sm"
+                    >
+                      <div className="p-3 rounded-xl bg-gradient-to-br from-gray-800 to-gray-900 group-hover:from-primary-600/20 group-hover:to-purple-600/20 transition-all duration-300 text-gray-400 group-hover:text-primary-400 border border-gray-700/50 group-hover:border-primary-500/30 shadow-lg">
+                        {getResourceIcon(resource.type)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <a
+                          href={resource.link || resource.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm font-bold text-gray-200 group-hover:text-white transition-colors truncate block mb-1 hover:underline"
+                        >
+                          {sanitizeText(resource.title || resource.label)}
+                        </a>
+                        <p className="text-xs text-gray-500 truncate font-medium">{sanitizeText(resource.type)}</p>
+                      </div>
+                      <a
+                        href={resource.link || resource.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-4 p-4 rounded-xl hover:bg-gray-800/60 transition-all duration-200 group border border-transparent hover:border-gray-700/50 backdrop-blur-sm"
+                        className="text-gray-600 group-hover:text-primary-400 transition-colors flex-shrink-0"
                       >
-                        <div className="p-3 rounded-xl bg-gradient-to-br from-gray-800 to-gray-900 group-hover:from-primary-600/20 group-hover:to-purple-600/20 transition-all duration-300 text-gray-400 group-hover:text-primary-400 border border-gray-700/50 group-hover:border-primary-500/30 shadow-lg">
-                          {getResourceIcon(resource.type)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="text-sm font-bold text-gray-200 group-hover:text-white transition-colors truncate mb-1">
-                            {sanitizeText(resource.title || resource.label)}
-                          </h4>
-                          <p className="text-xs text-gray-500 truncate font-medium">{sanitizeText(resource.type)}</p>
-                        </div>
-                        <ExternalLink size={16} className="text-gray-600 group-hover:text-primary-400 transition-colors flex-shrink-0" />
-                      </motion.a>
-                    ))}
+                        <ExternalLink size={16} />
+                      </a>
+                      <button 
+                        onClick={() => removeResource(resource.id)}
+                        className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all duration-200 p-1.5 rounded-lg hover:bg-red-500/10"
+                      >
+                        <X size={15} />
+                      </button>
+                    </motion.div>
+                  ))}
+                </div>
+
+                {/* Add Resource Form */}
+                <form onSubmit={handleAddResource} className="space-y-3 pt-4 border-t border-gray-700/50">
+                  <input
+                    type="text"
+                    value={newResource.label}
+                    onChange={(e) => setNewResource({ ...newResource, label: e.target.value })}
+                    placeholder="🔗 Resource name (e.g., GitHub Repository)"
+                    className="w-full bg-gray-800/60 border border-gray-700/50 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-primary-500/50 focus:bg-gray-800/80 transition-all duration-200 backdrop-blur-xl font-medium"
+                  />
+                  <input
+                    type="text"
+                    value={newResource.url}
+                    onChange={(e) => setNewResource({ ...newResource, url: e.target.value })}
+                    placeholder="🌐 URL (e.g., https://github.com/username/repo)"
+                    className="w-full bg-gray-800/60 border border-gray-700/50 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-primary-500/50 focus:bg-gray-800/80 transition-all duration-200 backdrop-blur-xl font-medium"
+                  />
+                  <div className="flex gap-3">
+                    <select
+                      value={newResource.type}
+                      onChange={(e) => setNewResource({ ...newResource, type: e.target.value })}
+                      className="flex-1 bg-gray-800/60 border border-gray-700/50 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-primary-500/50 focus:bg-gray-800/80 transition-all duration-200 backdrop-blur-xl font-medium"
+                    >
+                      {resourceTypes.map((type) => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                    </select>
+                    <motion.button 
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      type="submit"
+                      disabled={!newResource.label.trim() || !newResource.url.trim()}
+                      className="bg-gradient-to-r from-primary-600 to-purple-600 hover:from-primary-500 hover:to-purple-500 text-white px-6 py-3 rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-sm shadow-lg shadow-primary-500/30 disabled:shadow-none"
+                    >
+                      Add
+                    </motion.button>
                   </div>
-                )}
+                </form>
               </motion.div>
             )}
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState , useEffect} from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Loader2, LogOut, Users, ArrowLeft } from 'lucide-react';
 import Dashboard from './components/Dashboard';
@@ -36,7 +36,9 @@ function App() {
   const [isTeamManagerOpen, setIsTeamManagerOpen] = useState(false);
   const [editingHackathon, setEditingHackathon] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
-
+  useEffect(() => {
+    setIsTeamManagerOpen(false);
+  }, [currentTeam]);
   /**
    * Add a new hackathon to Firestore
    * @param {Object} hackathon - The hackathon object to add

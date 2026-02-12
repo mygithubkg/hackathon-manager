@@ -4,8 +4,8 @@ import { Bell, Clock, AlertTriangle } from 'lucide-react';
 
 /**
  * NotificationBell Component
- * Client-side notification system for imminent deadlines
- * Alerts users when hackathons are due within 6 hours
+ * Fix: Aligned breakpoints to 'md' to match App.js layout changes.
+ * Prevents dropdown clipping on tablet/intermediate screen sizes.
  */
 const NotificationBell = ({ hackathons = [] }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -18,23 +18,13 @@ const NotificationBell = ({ hackathons = [] }) => {
       const now = new Date().getTime();
       const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
 
-      // SAFETY: Filter with optional chaining for backward compatibility
       const urgentAlerts = (hackathons || [])
         .filter(h => {
-          // Skip if no deadline
           if (!h?.deadline) return false;
-
-          // Skip if already completed
           if (h.status === 'Completed') return false;
-
           const deadlineTime = new Date(h.deadline).getTime();
-          
-          // Check if deadline is valid
           if (isNaN(deadlineTime)) return false;
-
           const timeUntil = deadlineTime - now;
-
-          // Alert if deadline is within 6 hours (and not past)
           return timeUntil > 0 && timeUntil < SIX_HOURS_MS;
         })
         .map(h => {
@@ -52,16 +42,13 @@ const NotificationBell = ({ hackathons = [] }) => {
             timeUntil
           };
         })
-        .sort((a, b) => a.timeUntil - b.timeUntil); // Sort by most urgent first
+        .sort((a, b) => a.timeUntil - b.timeUntil);
 
       setAlerts(urgentAlerts);
     };
 
     calculateAlerts();
-    
-    // Update alerts every minute
     const interval = setInterval(calculateAlerts, 60000);
-    
     return () => clearInterval(interval);
   }, [hackathons]);
 
@@ -121,7 +108,19 @@ const NotificationBell = ({ hackathons = [] }) => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.95 }}
             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-            className="absolute right-0 mt-3 w-80 max-w-[calc(100vw-2rem)] bg-gray-900/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50"
+            // --- RESPONSIVE FIX ---
+            // Changed 'sm:' to 'md:' to match the header layout shift.
+            // On screens < md (where buttons are left-aligned), it stays fixed/centered.
+            // On screens >= md (where buttons move right), it anchors to the button.
+            className={`
+              z-50 bg-gray-900/95 backdrop-blur-2xl border border-white/10 shadow-2xl overflow-hidden rounded-2xl
+              
+              /* Mobile & Tablet (< 768px): Fixed position, centered below header */
+              fixed left-4 right-4 top-20 w-auto 
+              
+              /* Desktop (>= 768px): Absolute position, anchored to button */
+              md:absolute md:top-full md:right-0 md:left-auto md:w-80 md:mt-3
+            `}
           >
             {/* Header */}
             <div className="px-5 py-4 border-b border-white/10 bg-white/5">
@@ -138,8 +137,8 @@ const NotificationBell = ({ hackathons = [] }) => {
               </div>
             </div>
 
-            {/* Alert List */}
-            <div className="max-h-96 overflow-y-auto custom-scrollbar">
+            {/* Alert List - Responsive max-height */}
+            <div className="max-h-[60vh] md:max-h-96 overflow-y-auto custom-scrollbar">
               {!hasAlerts ? (
                 /* Empty State */
                 <div className="px-5 py-8 text-center">
@@ -172,7 +171,7 @@ const NotificationBell = ({ hackathons = [] }) => {
 
                         {/* Content */}
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-white mb-1 leading-tight">
+                          <p className="text-sm font-bold text-white mb-1 leading-tight break-words">
                             {alert.title}
                           </p>
                           <div className="flex items-center gap-1.5 text-xs text-red-400 font-bold">
