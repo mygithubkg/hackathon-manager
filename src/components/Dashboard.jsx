@@ -104,11 +104,11 @@ const Dashboard = ({ hackathons = [], onEdit, onDelete, onUpdate, isTeamView }) 
     <div className="container mx-auto px-4 pb-20 max-w-7xl">
 
       {/* --- HEADER & CONTROLS --- */}
-      <div className="flex flex-col md:flex-row justify-between items-end mb-10 gap-6">
+      <div className="flex flex-col md:flex-row justify-between items-end mb-10 gap-6 items-center">
         <div>
           <h2 className="text-3xl font-heading font-bold text-white mb-2 flex items-center gap-3">
             {isTeamView ? <Users className="text-indigo-400" /> : <LayoutGrid className="text-indigo-400" />}
-            {isTeamView ? 'Team Command' : 'My Projects'}
+            {isTeamView ? 'Team Projects' : 'My Projects'}
           </h2>
           <p className="text-gray-400 font-body text-sm">
             Overview of all active and archived protocols.
