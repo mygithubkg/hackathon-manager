@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { 
-  collection, 
-  addDoc, 
-  query, 
-  where, 
-  getDocs, 
-  updateDoc, 
-  arrayUnion, 
+import {
+  collection,
+  addDoc,
+  query,
+  where,
+  getDocs,
+  updateDoc,
+  arrayUnion,
   doc,
   onSnapshot,
   serverTimestamp
@@ -54,9 +54,35 @@ export function TeamProvider({ children }) {
         id: doc.id,
         ...doc.data()
       }));
-      
+
       setUserTeams(teams);
-      
+
+      // --- SELF-HEALING DATA MIGRATION ---
+      // Automatically upgrade old team data to include memberProfiles
+      teams.forEach(async (team) => {
+        const profiles = team.memberProfiles || [];
+        const myProfile = profiles.find(p => p.uid === currentUser.uid);
+
+        if (!myProfile) {
+          console.log(`🩹 Self-healing data for team: ${team.name}`);
+          try {
+            const teamDocRef = doc(db, 'teams', team.id);
+            const userProfile = {
+              uid: currentUser.uid,
+              email: currentUser.email,
+              displayName: currentUser.displayName || 'Team Member'
+            };
+            // usage of arrayUnion is safe here
+            await updateDoc(teamDocRef, {
+              memberProfiles: arrayUnion(userProfile)
+            });
+          } catch (err) {
+            // Silently fail if permissions prevent healing (e.g. read-only)
+            // console.warn("Could not heal team profile:", err); 
+          }
+        }
+      });
+
       // If user is designated to a team but currentTeam is null, set the first one
       // Or if the currentTeam is no longer in the list (kicked out?), reset it
       if (teams.length > 0 && !currentTeam) {
@@ -65,7 +91,7 @@ export function TeamProvider({ children }) {
       } else if (currentTeam && !teams.find(t => t.id === currentTeam.id)) {
         setCurrentTeam(null);
       }
-      
+
       setLoading(false);
     });
 
@@ -78,10 +104,15 @@ export function TeamProvider({ children }) {
 
     // Ensure unique invite code (simple check, in production might need retry loop)
     const inviteCode = generateInviteCode();
-    
+
     const teamData = {
       name: teamName,
       members: [currentUser.uid],
+      memberProfiles: [{
+        uid: currentUser.uid,
+        email: currentUser.email,
+        displayName: currentUser.displayName || 'Leader'
+      }],
       createdBy: currentUser.uid,
       inviteCode: inviteCode,
       createdAt: serverTimestamp()
@@ -96,7 +127,7 @@ export function TeamProvider({ children }) {
   // Join a team using invite code
   const joinTeam = async (code) => {
     if (!currentUser) throw new Error('Must be logged in');
-    
+
     // Find team with this code
     const teamsRef = collection(db, 'teams');
     const q = query(teamsRef, where('inviteCode', '==', code.toUpperCase()));
@@ -114,9 +145,14 @@ export function TeamProvider({ children }) {
       throw new Error('You are already a member of this team');
     }
 
-    // Add user to members array
+    // Add user to members array AND memberProfiles
     await updateDoc(doc(db, 'teams', teamDoc.id), {
-      members: arrayUnion(currentUser.uid)
+      members: arrayUnion(currentUser.uid),
+      memberProfiles: arrayUnion({
+        uid: currentUser.uid,
+        email: currentUser.email,
+        displayName: currentUser.displayName || 'Member'
+      })
     });
 
     const joinedTeam = { id: teamDoc.id, ...teamData, members: [...teamData.members, currentUser.uid] };

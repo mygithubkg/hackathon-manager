@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Edit2, Trash2, ExternalLink, 
+import {
+  Edit2, Trash2, ExternalLink,
   Github, FileText, Palette, FolderOpen, Link as LinkIcon,
   Clock, CheckSquare, Plus, Check, X, Sparkles, LayoutGrid, ListTodo, Bookmark
 } from 'lucide-react';
 import { sanitizeText, validateLength, isInputSafe, sanitizeURL } from '../utils/security';
+import { useAuth } from '../contexts/AuthContext';
+import { notifyUsers, getProjectRecipients } from '../utils/notifications';
 
 /**
  * 🎨 GLASSMORPHIC PREMIUM WITH TABBED NAVIGATION
@@ -13,6 +15,7 @@ import { sanitizeText, validateLength, isInputSafe, sanitizeURL } from '../utils
  * Features: Tab-based content switching, consistent card height, professional animations
  */
 const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon }) => {
+  const { currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState('overview'); // overview, tasks, resources, checklist
   const [newTask, setNewTask] = useState('');
   const [newTaskItem, setNewTaskItem] = useState('');
@@ -22,9 +25,9 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
   const [isUrgent, setIsUrgent] = useState(false);
   const [isOverdue, setIsOverdue] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
-  
+
   const saveToFirebase = updateHackathon || onUpdate;
-  
+
   const resourceTypes = ['GitHub', 'Canva', 'PPT', 'Drive', 'Other'];
 
   // Enhanced status styling
@@ -38,7 +41,7 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
   useEffect(() => {
     const calculateTime = () => {
       if (!hackathon.deadline) return null;
-      
+
       const targetDate = new Date(hackathon.deadline);
       if (isNaN(targetDate.getTime())) return null;
 
@@ -84,24 +87,45 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
     }
 
     const updatedChecklist = [...currentChecklist, { id: Date.now(), text: sanitizedTask, completed: false }];
+
+    // SAVE TO DB
     onUpdate(hackathon.id, { checklist: updatedChecklist });
+
+    // NOTIFICATION: Quick Task Added
+    (async () => {
+      try {
+        const recipients = await getProjectRecipients(hackathon);
+        await notifyUsers(
+          recipients,
+          {
+            headline: 'New Quick Task',
+            message: `Added to ${hackathon.title}: "${sanitizedTask}"`,
+            type_color: '#3B82F6', // BLUE
+            btn_text: 'View Project',
+            btn_link: window.location.href
+          },
+          { type: 'info', relatedId: hackathon.id }
+        );
+      } catch (err) { console.error("Notify Error:", err); }
+    })();
+
     setNewTask('');
   };
 
   const toggleTask = (taskId) => {
     if (!onUpdate) return;
     const currentChecklist = hackathon.checklist || [];
-    const updatedChecklist = currentChecklist.map(task => 
+    const updatedChecklist = currentChecklist.map(task =>
       task.id === taskId ? { ...task, completed: !task.completed } : task
     );
     onUpdate(hackathon.id, { checklist: updatedChecklist });
   };
-  
+
   const removeTask = (taskId) => {
-     if (!onUpdate) return;
-     const currentChecklist = hackathon.checklist || [];
-     const updatedChecklist = currentChecklist.filter(task => task.id !== taskId);
-     onUpdate(hackathon.id, { checklist: updatedChecklist });
+    if (!onUpdate) return;
+    const currentChecklist = hackathon.checklist || [];
+    const updatedChecklist = currentChecklist.filter(task => task.id !== taskId);
+    onUpdate(hackathon.id, { checklist: updatedChecklist });
   };
 
   const handleAddTaskItem = async (e) => {
@@ -120,9 +144,9 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
       return;
     }
 
-    const newTaskObj = { 
-      id: Date.now(), 
-      text: sanitizedTask, 
+    const newTaskObj = {
+      id: Date.now(),
+      text: sanitizedTask,
       done: false,
       deadline: newTaskDeadline || null
     };
@@ -133,6 +157,21 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
       await saveToFirebase(hackathon.id, { tasks: updatedTasks });
       setNewTaskItem('');
       setNewTaskDeadline('');
+
+      // NOTIFICATION: Main Task Added
+      const recipients = await getProjectRecipients(hackathon);
+      await notifyUsers(
+        recipients,
+        {
+          headline: 'New Task Assigned',
+          message: `Task added to ${hackathon.title}: "${sanitizedTask}"`,
+          type_color: '#3B82F6', // BLUE
+          btn_text: 'View Tasks',
+          btn_link: window.location.href
+        },
+        { type: 'info', relatedId: hackathon.id }
+      );
+
     } catch (error) {
       console.error('❌ Failed to save task to Firebase:', error);
       alert('Failed to save task. Please try again.');
@@ -142,27 +181,27 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
   const toggleTaskItem = async (taskId) => {
     if (!saveToFirebase) return;
     const currentTasks = hackathon.tasks || [];
-    const updatedTasks = currentTasks.map(task => 
+    const updatedTasks = currentTasks.map(task =>
       task.id === taskId ? { ...task, done: !task.done } : task
     );
-    
+
     try {
       await saveToFirebase(hackathon.id, { tasks: updatedTasks });
     } catch (error) {
       console.error('❌ Failed to toggle task:', error);
     }
   };
-  
+
   const removeTaskItem = async (taskId) => {
-     if (!saveToFirebase) return;
-     const currentTasks = hackathon.tasks || [];
-     const updatedTasks = currentTasks.filter(task => task.id !== taskId);
-     
-     try {
-       await saveToFirebase(hackathon.id, { tasks: updatedTasks });
-     } catch (error) {
-       console.error('❌ Failed to delete task:', error);
-     }
+    if (!saveToFirebase) return;
+    const currentTasks = hackathon.tasks || [];
+    const updatedTasks = currentTasks.filter(task => task.id !== taskId);
+
+    try {
+      await saveToFirebase(hackathon.id, { tasks: updatedTasks });
+    } catch (error) {
+      console.error('❌ Failed to delete task:', error);
+    }
   };
 
   const handleAddResource = async (e) => {
@@ -207,7 +246,25 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
 
     try {
       await saveToFirebase(hackathon.id, { resources: updatedResources });
+
       setNewResource({ label: '', url: '', type: 'Other' });
+
+      // NOTIFICATION: New Resource Added (BLUE Theme)
+      const recipients = await getProjectRecipients(hackathon);
+      const emailData = {
+        headline: 'New Resource Added',
+        message: `Resource "${sanitizedLabel}" added to project "${hackathon.title}"`,
+        type_color: '#3B82F6', // BLUE
+        btn_text: 'View Resource',
+        btn_link: sanitizedUrl
+      };
+
+      const notificationData = {
+        type: 'info',
+        relatedId: hackathon.id
+      };
+
+      await notifyUsers(recipients, emailData, notificationData);
     } catch (error) {
       console.error('❌ Failed to save resource to Firebase:', error);
       alert('Failed to save resource. Please try again.');
@@ -218,7 +275,7 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
     if (!saveToFirebase) return;
     const currentResources = hackathon.resources || [];
     const updatedResources = currentResources.filter(resource => resource.id !== resourceId);
-    
+
     try {
       await saveToFirebase(hackathon.id, { resources: updatedResources });
     } catch (error) {
@@ -271,19 +328,17 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
       className="group relative h-full"
     >
       {/* Glowing border effect */}
-      <div className={`absolute inset-0 rounded-2xl bg-gradient-to-br from-primary-500/20 via-purple-500/20 to-pink-500/20 blur-xl transition-opacity duration-500 ${
-        isHovered ? 'opacity-100' : 'opacity-0'
-      }`} />
-      
+      <div className={`absolute inset-0 rounded-2xl bg-gradient-to-br from-primary-500/20 via-purple-500/20 to-pink-500/20 blur-xl transition-opacity duration-500 ${isHovered ? 'opacity-100' : 'opacity-0'
+        }`} />
+
       {/* Main card with fixed height and internal scrolling */}
-      <div className={`relative h-full flex flex-col rounded-2xl backdrop-blur-2xl bg-gradient-to-br from-gray-800/90 to-gray-900/90 border transition-all duration-500 overflow-hidden ${
-        isOverdue 
-          ? 'border-red-500/50 shadow-2xl shadow-red-500/20' 
-          : isHovered
-            ? 'border-gray-600/60 shadow-2xl shadow-primary-500/10'
-            : 'border-gray-700/50 shadow-xl'
-      }`}>
-        
+      <div className={`relative h-full flex flex-col rounded-2xl backdrop-blur-2xl bg-gradient-to-br from-gray-800/90 to-gray-900/90 border transition-all duration-500 overflow-hidden ${isOverdue
+        ? 'border-red-500/50 shadow-2xl shadow-red-500/20'
+        : isHovered
+          ? 'border-gray-600/60 shadow-2xl shadow-primary-500/10'
+          : 'border-gray-700/50 shadow-xl'
+        }`}>
+
         {/* Decorative gradient orbs */}
         <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-primary-500/10 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-40 h-40 bg-gradient-to-tr from-purple-500/10 to-transparent rounded-full blur-3xl translate-y-1/2 -translate-x-1/4 pointer-events-none" />
@@ -293,7 +348,7 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
           {/* Title & Actions */}
           <div className="flex items-start gap-4 mb-4">
             <div className="flex-1 min-w-0">
-              <motion.h3 
+              <motion.h3
                 className="text-xl font-bold bg-gradient-to-r from-white via-gray-100 to-gray-300 bg-clip-text text-transparent leading-tight"
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -302,7 +357,7 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
                 {sanitizeText(hackathon.title)}
               </motion.h3>
             </div>
-            
+
             {/* Floating glass action buttons */}
             <div className="flex gap-2">
               <motion.button
@@ -314,7 +369,7 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
               >
                 <Edit2 size={15} />
               </motion.button>
-              
+
               <motion.button
                 whileHover={{ scale: 1.05, y: -2 }}
                 whileTap={{ scale: 0.95 }}
@@ -329,7 +384,7 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
 
           {/* Status badges */}
           <div className="flex items-center gap-2.5 flex-wrap">
-            <motion.span 
+            <motion.span
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ delay: 0.2 }}
@@ -338,28 +393,27 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
               <Sparkles size={11} />
               {hackathon.status}
             </motion.span>
-            
+
             {timeLeft && (
-               <motion.div 
-                 initial={{ scale: 0.8, opacity: 0 }}
-                 animate={{ scale: 1, opacity: 1 }}
-                 transition={{ delay: 0.25 }}
-                 className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl backdrop-blur-xl border shadow-lg ${
-                     isOverdue
-                       ? 'bg-red-500/20 text-red-200 border-red-400/50 shadow-red-500/20 animate-pulse'
-                       : isUrgent 
-                         ? 'bg-orange-500/20 text-orange-200 border-orange-400/40 shadow-orange-500/20' 
-                         : 'bg-gray-700/40 text-gray-200 border-gray-600/30'
-                 }`}
-               >
-                  <Clock size={12} />
-                  <span className="tracking-wide">{timeLeft}</span>
-               </motion.div>
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.25 }}
+                className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl backdrop-blur-xl border shadow-lg ${isOverdue
+                  ? 'bg-red-500/20 text-red-200 border-red-400/50 shadow-red-500/20 animate-pulse'
+                  : isUrgent
+                    ? 'bg-orange-500/20 text-orange-200 border-orange-400/40 shadow-orange-500/20'
+                    : 'bg-gray-700/40 text-gray-200 border-gray-600/30'
+                  }`}
+              >
+                <Clock size={12} />
+                <span className="tracking-wide">{timeLeft}</span>
+              </motion.div>
             )}
 
             {/* Progress indicator in header */}
             {totalTasks > 0 && (
-              <motion.div 
+              <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: 0.3 }}
@@ -369,7 +423,7 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
                   {progressPercent}%
                 </span>
                 <div className="w-16 h-1.5 bg-gray-600/50 rounded-full overflow-hidden">
-                  <motion.div 
+                  <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${progressPercent}%` }}
                     transition={{ duration: 1, ease: [0.22, 1, 0.36, 1], delay: 0.4 }}
@@ -387,31 +441,29 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
-              
+
               return (
                 <motion.button
                   key={tab.id}
                   whileHover={{ y: -2 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`relative flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-medium transition-all duration-300 whitespace-nowrap ${
-                    isActive
-                      ? 'text-white bg-gray-800/60 border-t border-x border-gray-700/50'
-                      : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/30'
-                  }`}
+                  className={`relative flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-medium transition-all duration-300 whitespace-nowrap ${isActive
+                    ? 'text-white bg-gray-800/60 border-t border-x border-gray-700/50'
+                    : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/30'
+                    }`}
                 >
                   <Icon size={15} strokeWidth={2} />
                   <span>{tab.label}</span>
                   {tab.count !== null && tab.count > 0 && (
-                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${
-                      isActive 
-                        ? 'bg-primary-500/20 text-primary-300' 
-                        : 'bg-gray-700/50 text-gray-400'
-                    }`}>
+                    <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${isActive
+                      ? 'bg-primary-500/20 text-primary-300'
+                      : 'bg-gray-700/50 text-gray-400'
+                      }`}>
                       {tab.count}
                     </span>
                   )}
-                  
+
                   {/* Active indicator */}
                   {isActive && (
                     <motion.div
@@ -460,7 +512,7 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
                       </div>
                     </div>
                     <div className="relative w-full h-3 bg-gray-700/50 rounded-full overflow-hidden backdrop-blur-sm">
-                      <motion.div 
+                      <motion.div
                         initial={{ width: 0 }}
                         animate={{ width: `${progressPercent}%` }}
                         transition={{ duration: 1, ease: [0.22, 1, 0.36, 1], delay: 0.2 }}
@@ -506,59 +558,56 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
                       <p className="text-xs text-gray-600 mt-1">Add your first task below ✨</p>
                     </div>
                   )}
-                  
+
                   {hackathon.tasks?.map((task, index) => {
                     const isTaskOverdue = task.deadline && new Date(task.deadline) < new Date();
-                    
+
                     return (
-                    <motion.div 
-                      key={task.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                      className="flex items-start gap-3 group p-3 rounded-xl hover:bg-gray-800/60 transition-all duration-200 border border-transparent hover:border-gray-700/40"
-                    >
-                      <button 
-                        onClick={() => toggleTaskItem(task.id)}
-                        className={`flex-shrink-0 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all duration-200 mt-0.5 ${
-                          task.done 
-                            ? 'bg-gradient-to-br from-emerald-500 to-green-600 border-emerald-400 text-white shadow-lg shadow-emerald-500/30' 
+                      <motion.div
+                        key={task.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        className="flex items-start gap-3 group p-3 rounded-xl hover:bg-gray-800/60 transition-all duration-200 border border-transparent hover:border-gray-700/40"
+                      >
+                        <button
+                          onClick={() => toggleTaskItem(task.id)}
+                          className={`flex-shrink-0 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all duration-200 mt-0.5 ${task.done
+                            ? 'bg-gradient-to-br from-emerald-500 to-green-600 border-emerald-400 text-white shadow-lg shadow-emerald-500/30'
                             : 'bg-gray-800/60 border-gray-600 text-transparent hover:border-emerald-500/50 hover:bg-gray-700/60'
-                        }`}
-                      >
-                        <Check size={14} strokeWidth={3} />
-                      </button>
-                      <div className="flex-1 min-w-0">
-                        <span className={`text-sm block break-words font-medium ${
-                          task.done ? 'text-gray-500 line-through' : 'text-gray-200'
-                        }`}>
-                          {sanitizeText(task.text)}
-                        </span>
-                        {task.deadline && (
-                          <div className={`flex items-center gap-1.5 text-xs mt-2 font-bold ${
-                            isTaskOverdue 
-                              ? 'text-red-400' 
+                            }`}
+                        >
+                          <Check size={14} strokeWidth={3} />
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <span className={`text-sm block break-words font-medium ${task.done ? 'text-gray-500 line-through' : 'text-gray-200'
+                            }`}>
+                            {sanitizeText(task.text)}
+                          </span>
+                          {task.deadline && (
+                            <div className={`flex items-center gap-1.5 text-xs mt-2 font-bold ${isTaskOverdue
+                              ? 'text-red-400'
                               : 'text-gray-500'
-                          }`}>
-                            <Clock size={11} />
-                            <span>
-                              {new Date(task.deadline).toLocaleDateString('en-US', { 
-                                month: 'short', 
-                                day: 'numeric',
-                                year: new Date(task.deadline).getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
-                              })}
-                            </span>
-                            {isTaskOverdue && <span className="ml-1">⚠️ OVERDUE</span>}
-                          </div>
-                        )}
-                      </div>
-                      <button 
-                        onClick={() => removeTaskItem(task.id)}
-                        className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all duration-200 p-1.5 rounded-lg hover:bg-red-500/10"
-                      >
-                        <X size={15} />
-                      </button>
-                    </motion.div>
+                              }`}>
+                              <Clock size={11} />
+                              <span>
+                                {new Date(task.deadline).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: new Date(task.deadline).getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+                                })}
+                              </span>
+                              {isTaskOverdue && <span className="ml-1">⚠️ OVERDUE</span>}
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => removeTaskItem(task.id)}
+                          className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all duration-200 p-1.5 rounded-lg hover:bg-red-500/10"
+                        >
+                          <X size={15} />
+                        </button>
+                      </motion.div>
                     );
                   })}
                 </div>
@@ -579,7 +628,7 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
                       onChange={(e) => setNewTaskDeadline(e.target.value)}
                       className="flex-1 bg-gray-800/60 border border-gray-700/50 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500/50 focus:bg-gray-800/80 transition-all duration-200 backdrop-blur-xl font-medium"
                     />
-                    <motion.button 
+                    <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       type="submit"
@@ -613,7 +662,7 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
                       <p className="text-xs text-gray-600 mt-1">Add your first resource below 🔗</p>
                     </div>
                   )}
-                  
+
                   {hackathon.resources?.map((resource, index) => (
                     <motion.div
                       key={resource.id || index}
@@ -644,7 +693,7 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
                       >
                         <ExternalLink size={16} />
                       </a>
-                      <button 
+                      <button
                         onClick={() => removeResource(resource.id)}
                         className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all duration-200 p-1.5 rounded-lg hover:bg-red-500/10"
                       >
@@ -680,7 +729,7 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
                         <option key={type} value={type}>{type}</option>
                       ))}
                     </select>
-                    <motion.button 
+                    <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       type="submit"
@@ -714,29 +763,28 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
                       <p className="text-xs text-gray-600 mt-1">Add a quick task below 📝</p>
                     </div>
                   )}
-                  
+
                   {hackathon.checklist?.map((task, index) => (
-                    <motion.div 
+                    <motion.div
                       key={task.id}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.05 }}
                       className="flex items-center gap-3 group p-3 rounded-xl hover:bg-gray-800/60 transition-all duration-200 border border-transparent hover:border-gray-700/40"
                     >
-                      <button 
+                      <button
                         onClick={() => toggleTask(task.id)}
-                        className={`flex-shrink-0 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all duration-200 ${
-                          task.completed 
-                            ? 'bg-gradient-to-br from-pink-500 to-rose-600 border-pink-400 text-white shadow-lg shadow-pink-500/30' 
-                            : 'bg-gray-800/60 border-gray-600 text-transparent hover:border-pink-500/50 hover:bg-gray-700/60'
-                        }`}
+                        className={`flex-shrink-0 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all duration-200 ${task.completed
+                          ? 'bg-gradient-to-br from-pink-500 to-rose-600 border-pink-400 text-white shadow-lg shadow-pink-500/30'
+                          : 'bg-gray-800/60 border-gray-600 text-transparent hover:border-pink-500/50 hover:bg-gray-700/60'
+                          }`}
                       >
                         <Check size={14} strokeWidth={3} />
                       </button>
                       <span className={`text-sm flex-1 break-words font-medium ${task.completed ? 'text-gray-500 line-through' : 'text-gray-200'}`}>
                         {sanitizeText(task.text)}
                       </span>
-                      <button 
+                      <button
                         onClick={() => removeTask(task.id)}
                         className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all duration-200 p-1.5 rounded-lg hover:bg-red-500/10"
                       >
@@ -755,7 +803,7 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
                     placeholder="📝 Add a quick task..."
                     className="flex-1 bg-gray-800/60 border border-gray-700/50 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-pink-500/50 focus:bg-gray-800/80 transition-all duration-200 backdrop-blur-xl font-medium"
                   />
-                  <motion.button 
+                  <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     type="submit"

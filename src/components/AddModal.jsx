@@ -3,6 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, User, Users, Type, List, Link as LinkIcon, Calendar } from 'lucide-react';
 import ResourceManager from './ResourceManager';
 import { sanitizeText, validateLength, isInputSafe, isValidDate } from '../utils/security';
+import { useAuth } from '../contexts/AuthContext';
+import { useTeam } from '../contexts/TeamContext';
+import { notifyUsers, getProjectRecipients } from '../utils/notifications';
 
 // --- STYLED INPUT COMPONENT ---
 const InputField = ({ label, icon: Icon, ...props }) => (
@@ -38,7 +41,7 @@ const SelectField = ({ label, icon: Icon, children, ...props }) => (
       </select>
       <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
         <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </div>
     </div>
@@ -49,6 +52,8 @@ const SelectField = ({ label, icon: Icon, children, ...props }) => (
  * AddModal Component - High Fidelity Edition
  */
 const AddModal = ({ isOpen, onClose, onSave, editingHackathon }) => {
+  const { currentUser } = useAuth();
+  const { currentTeam } = useTeam();
   // Form state
   const [formData, setFormData] = useState({
     title: '',
@@ -84,12 +89,12 @@ const AddModal = ({ isOpen, onClose, onSave, editingHackathon }) => {
     }
   }, [editingHackathon]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // SECURITY: Comprehensive input validation
     const errors = [];
-    
+
     // Validate title
     if (!formData.title.trim()) {
       errors.push('Title is required');
@@ -98,30 +103,30 @@ const AddModal = ({ isOpen, onClose, onSave, editingHackathon }) => {
     } else if (!isInputSafe(formData.title)) {
       errors.push('Title contains invalid characters');
     }
-    
+
     // Validate description
     if (formData.description && formData.description.length > 1000) {
       errors.push('Description must be less than 1000 characters');
     } else if (formData.description && !isInputSafe(formData.description)) {
       errors.push('Description contains invalid characters');
     }
-    
+
     // Validate type
     if (!['solo', 'team'].includes(formData.type)) {
       errors.push('Invalid project type');
     }
-    
+
     // Validate status
     const validStatuses = ['Upcoming', 'Ongoing', 'Completed'];
     if (!validStatuses.includes(formData.status)) {
       errors.push('Invalid status');
     }
-    
+
     if (errors.length > 0) {
       alert('Validation Errors:\n' + errors.join('\n'));
       return;
     }
-    
+
     // SECURITY: Sanitize all inputs
     const hackathonData = {
       ...formData,
@@ -136,7 +141,41 @@ const AddModal = ({ isOpen, onClose, onSave, editingHackathon }) => {
       hackathonData.id = editingHackathon.id;
     }
 
-    onSave(hackathonData);
+    try {
+      await onSave(hackathonData);
+
+      // NOTIFICATION: New Hackathon Created
+      // NOTIFICATION: New Hackathon Created
+      if (!editingHackathon) {
+        // Construct a temporary object relative to what App.jsx will save
+        const tempHackathon = {
+          ...hackathonData,
+          type: currentTeam ? 'team' : 'solo',
+          teamId: currentTeam ? currentTeam.id : null,
+          ownerId: currentUser.uid
+        };
+
+        const recipients = await getProjectRecipients(tempHackathon);
+
+        // Email Data: { headline, message, type_color, btn_text, btn_link }
+        const emailData = {
+          headline: 'New Project Started',
+          message: `New hackathon protocol initialized: "${hackathonData.title}"`,
+          type_color: '#22C55E', // GREEN
+          btn_text: 'Open Project',
+          btn_link: `${window.location.origin}/project/${hackathonData.title.replace(/\s+/g, '-').toLowerCase()}`
+        };
+
+        const notificationData = {
+          type: 'success',
+          relatedId: hackathonData.id || null
+        };
+
+        await notifyUsers(recipients, emailData, notificationData);
+      }
+    } catch (error) {
+      console.error("Failed to save or notify:", error);
+    }
   };
 
   return (
@@ -184,7 +223,7 @@ const AddModal = ({ isOpen, onClose, onSave, editingHackathon }) => {
               {/* Scrollable Content */}
               <div className="flex-1 overflow-y-auto p-6 relative z-10 custom-scrollbar">
                 <form id="hackathon-form" onSubmit={handleSubmit} className="space-y-8">
-                  
+
                   {/* Project Type Selector */}
                   <div className="space-y-3">
                     <label className="text-xs font-heading font-bold text-gray-400 uppercase tracking-widest">
@@ -198,18 +237,16 @@ const AddModal = ({ isOpen, onClose, onSave, editingHackathon }) => {
                             key={type}
                             type="button"
                             onClick={() => setFormData({ ...formData, type })}
-                            className={`relative p-4 rounded-xl border transition-all duration-300 flex flex-col items-center gap-3 group overflow-hidden ${
-                              isActive
-                                ? 'bg-indigo-600/10 border-indigo-500'
-                                : 'bg-white/5 border-white/5 hover:border-white/20'
-                            }`}
+                            className={`relative p-4 rounded-xl border transition-all duration-300 flex flex-col items-center gap-3 group overflow-hidden ${isActive
+                              ? 'bg-indigo-600/10 border-indigo-500'
+                              : 'bg-white/5 border-white/5 hover:border-white/20'
+                              }`}
                           >
                             {/* Active Glow */}
                             {isActive && <div className="absolute inset-0 bg-indigo-500/10 blur-xl"></div>}
-                            
-                            <div className={`relative z-10 p-3 rounded-full transition-colors ${
-                              isActive ? 'bg-indigo-500 text-white' : 'bg-gray-800 text-gray-400 group-hover:bg-gray-700'
-                            }`}>
+
+                            <div className={`relative z-10 p-3 rounded-full transition-colors ${isActive ? 'bg-indigo-500 text-white' : 'bg-gray-800 text-gray-400 group-hover:bg-gray-700'
+                              }`}>
                               {type === 'solo' ? <User size={20} /> : <Users size={20} />}
                             </div>
                             <div className="relative z-10 text-center">
@@ -228,15 +265,15 @@ const AddModal = ({ isOpen, onClose, onSave, editingHackathon }) => {
 
                   {/* Core Details Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <InputField 
-                      label="Project Title" 
+                    <InputField
+                      label="Project Title"
                       icon={Type}
-                      placeholder="e.g. Neo-Tokyo Hack 2026" 
+                      placeholder="e.g. Neo-Tokyo Hack 2026"
                       value={formData.title}
                       onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                       required
                     />
-                    <SelectField 
+                    <SelectField
                       label="Current Status"
                       icon={Calendar}
                       value={formData.status}
@@ -282,7 +319,7 @@ const AddModal = ({ isOpen, onClose, onSave, editingHackathon }) => {
 
                   {/* Resources (Wrapped) */}
                   <div className="space-y-3">
-                     <label className="text-xs font-heading font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                    <label className="text-xs font-heading font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
                       <LinkIcon size={12} />
                       Attached Assets
                     </label>

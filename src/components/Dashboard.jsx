@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LayoutGrid, Users, Trophy, Activity, FolderOpen, Flame, Archive, Zap } from 'lucide-react';
 import HackathonCard from './HackathonCard';
+import { useAuth } from '../contexts/AuthContext';
+import { checkDeadlines } from '../utils/notifications';
 
 // --- SUB-COMPONENT: HUD STAT CARD ---
 const StatCard = ({ label, value, icon: Icon, colorClass, delay }) => (
@@ -27,7 +29,15 @@ const StatCard = ({ label, value, icon: Icon, colorClass, delay }) => (
 
 // --- MAIN COMPONENT ---
 const Dashboard = ({ hackathons = [], onEdit, onDelete, onUpdate, isTeamView }) => {
+  const { currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState('solo');
+
+  // TRIGGER: Check for deadlines automatically
+  React.useEffect(() => {
+    if (hackathons.length > 0 && currentUser) {
+      checkDeadlines(hackathons, currentUser);
+    }
+  }, [hackathons, currentUser]);
 
   // --- ANIMATION VARIANTS ---
   const containerVariants = {
@@ -37,10 +47,10 @@ const Dashboard = ({ hackathons = [], onEdit, onDelete, onUpdate, isTeamView }) 
 
   const itemVariants = {
     hidden: { y: 20, opacity: 0 },
-    visible: { 
-      y: 0, 
-      opacity: 1, 
-      transition: { type: 'spring', stiffness: 100, damping: 12 } 
+    visible: {
+      y: 0,
+      opacity: 1,
+      transition: { type: 'spring', stiffness: 100, damping: 12 }
     }
   };
 
@@ -81,7 +91,7 @@ const Dashboard = ({ hackathons = [], onEdit, onDelete, onUpdate, isTeamView }) 
 
       const priorityA = getPriority(a);
       const priorityB = getPriority(b);
-      
+
       if (priorityA !== priorityB) return priorityB - priorityA;
       if (a.deadline && b.deadline) return new Date(a.deadline) - new Date(b.deadline);
       if (a.deadline) return -1;
@@ -92,7 +102,7 @@ const Dashboard = ({ hackathons = [], onEdit, onDelete, onUpdate, isTeamView }) 
 
   return (
     <div className="container mx-auto px-4 pb-20 max-w-7xl">
-      
+
       {/* --- HEADER & CONTROLS --- */}
       <div className="flex flex-col md:flex-row justify-between items-end mb-10 gap-6">
         <div>
@@ -112,9 +122,8 @@ const Dashboard = ({ hackathons = [], onEdit, onDelete, onUpdate, isTeamView }) 
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`relative z-10 px-6 py-2 rounded-lg text-sm font-heading font-bold transition-colors duration-200 flex items-center gap-2 ${
-                  activeTab === tab ? 'text-white' : 'text-gray-500 hover:text-gray-300'
-                }`}
+                className={`relative z-10 px-6 py-2 rounded-lg text-sm font-heading font-bold transition-colors duration-200 flex items-center gap-2 ${activeTab === tab ? 'text-white' : 'text-gray-500 hover:text-gray-300'
+                  }`}
               >
                 {activeTab === tab && (
                   <motion.div
@@ -134,21 +143,21 @@ const Dashboard = ({ hackathons = [], onEdit, onDelete, onUpdate, isTeamView }) 
 
       {/* --- HUD STATS BAR --- */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
-        <StatCard 
+        <StatCard
           label="Total Protocols"
           value={filteredHackathons.length}
           icon={FolderOpen}
           colorClass="text-indigo-400"
           delay={0}
         />
-        <StatCard 
+        <StatCard
           label="Active Sprints"
           value={filteredHackathons.filter(h => h.status === 'Ongoing').length}
           icon={Activity}
           colorClass="text-amber-400"
           delay={0.1}
         />
-        <StatCard 
+        <StatCard
           label="Shipped"
           value={filteredHackathons.filter(h => h.status === 'Completed').length}
           icon={Trophy}
@@ -174,8 +183,8 @@ const Dashboard = ({ hackathons = [], onEdit, onDelete, onUpdate, isTeamView }) 
             No signal detected
           </h3>
           <p className="text-gray-500 font-body max-w-sm">
-            {isTeamView 
-              ? 'No team operations found.' 
+            {isTeamView
+              ? 'No team operations found.'
               : `Initialize your first ${activeTab} project above.`}
           </p>
         </motion.div>
@@ -185,7 +194,7 @@ const Dashboard = ({ hackathons = [], onEdit, onDelete, onUpdate, isTeamView }) 
             // SYSTEMATIC GROUPING: 48 hours critical, Active, Everything Else
             const now = new Date().getTime();
             const CRITICAL_THRESHOLD_MS = 48 * 60 * 60 * 1000; // 48 hours
-            
+
             // Group 1: 🔥 Critical Attention - Deadline < 48 hours
             const critical = filteredHackathons.filter(h => {
               if (!h?.deadline) return false;
@@ -193,17 +202,17 @@ const Dashboard = ({ hackathons = [], onEdit, onDelete, onUpdate, isTeamView }) 
               const timeUntil = deadlineTime - now;
               return timeUntil > 0 && timeUntil < CRITICAL_THRESHOLD_MS;
             });
-            
+
             // Group 2: 💻 Active Projects - Status is 'Ongoing' (not already in critical)
-            const active = filteredHackathons.filter(h => 
+            const active = filteredHackathons.filter(h =>
               h.status === 'Ongoing' && !critical.includes(h)
             );
-            
+
             // Group 3: 📅 Planned & Completed - Everything else
-            const plannedAndCompleted = filteredHackathons.filter(h => 
+            const plannedAndCompleted = filteredHackathons.filter(h =>
               !critical.includes(h) && !active.includes(h)
             );
-            
+
             return (
               <>
                 {/* GROUP 1: CRITICAL ATTENTION */}
@@ -216,7 +225,7 @@ const Dashboard = ({ hackathons = [], onEdit, onDelete, onUpdate, isTeamView }) 
                       </div>
                       <div className="flex-1 h-px bg-gradient-to-r from-red-500/30 to-transparent"></div>
                     </div>
-                    <motion.div 
+                    <motion.div
                       className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
                       variants={containerVariants}
                       initial="hidden"
@@ -224,9 +233,9 @@ const Dashboard = ({ hackathons = [], onEdit, onDelete, onUpdate, isTeamView }) 
                     >
                       {critical.map((hackathon) => (
                         <motion.div key={hackathon.id} variants={itemVariants} layout>
-                          <HackathonCard 
-                            hackathon={hackathon} 
-                            onEdit={onEdit} 
+                          <HackathonCard
+                            hackathon={hackathon}
+                            onEdit={onEdit}
                             onUpdate={onUpdate}
                             onDelete={handleSecureDelete}
                           />
@@ -240,13 +249,13 @@ const Dashboard = ({ hackathons = [], onEdit, onDelete, onUpdate, isTeamView }) 
                 {active.length > 0 && (
                   <div className="space-y-4">
                     <div className="flex items-center gap-3">
-                       <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 font-heading font-bold text-sm uppercase tracking-wider">
+                      <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 font-heading font-bold text-sm uppercase tracking-wider">
                         <Activity size={14} />
                         <span>💻 Active Projects</span>
                       </div>
                       <div className="flex-1 h-px bg-gradient-to-r from-amber-500/30 to-transparent"></div>
                     </div>
-                    <motion.div 
+                    <motion.div
                       className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
                       variants={containerVariants}
                       initial="hidden"
@@ -254,9 +263,9 @@ const Dashboard = ({ hackathons = [], onEdit, onDelete, onUpdate, isTeamView }) 
                     >
                       {active.map((hackathon) => (
                         <motion.div key={hackathon.id} variants={itemVariants} layout>
-                          <HackathonCard 
-                            hackathon={hackathon} 
-                            onEdit={onEdit} 
+                          <HackathonCard
+                            hackathon={hackathon}
+                            onEdit={onEdit}
                             onUpdate={onUpdate}
                             onDelete={handleSecureDelete}
                           />
@@ -276,7 +285,7 @@ const Dashboard = ({ hackathons = [], onEdit, onDelete, onUpdate, isTeamView }) 
                       </div>
                       <div className="flex-1 h-px bg-gradient-to-r from-gray-500/30 to-transparent"></div>
                     </div>
-                    <motion.div 
+                    <motion.div
                       className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
                       variants={containerVariants}
                       initial="hidden"
@@ -284,9 +293,9 @@ const Dashboard = ({ hackathons = [], onEdit, onDelete, onUpdate, isTeamView }) 
                     >
                       {plannedAndCompleted.map((hackathon) => (
                         <motion.div key={hackathon.id} variants={itemVariants} layout>
-                          <HackathonCard 
-                            hackathon={hackathon} 
-                            onEdit={onEdit} 
+                          <HackathonCard
+                            hackathon={hackathon}
+                            onEdit={onEdit}
                             onUpdate={onUpdate}
                             onDelete={handleSecureDelete}
                           />
