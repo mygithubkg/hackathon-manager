@@ -45,9 +45,9 @@ export const getProjectRecipients = async (hackathon) => {
         const memberUids = teamData.members || [];
         const memberProfiles = teamData.memberProfiles || []; // NEW: Stored directly in team doc
 
-        console.group(`👥 Team ID: ${hackathon.teamId}`);
-        console.log(`Team Name: ${teamData.name || 'Unnamed Team'}`);
-        console.log(`Member Count (UIDs): ${memberUids.length}`);
+        //console.group(`👥 Team ID: ${hackathon.teamId}`);
+        //console.log(`Team Name: ${teamData.name || 'Unnamed Team'}`);
+        //console.log(`Member Count (UIDs): ${memberUids.length}`);
         
         // Strategy: Use stored profiles first, fall back to UIDs lookup if needed
         const processedUids = new Set();
@@ -55,7 +55,7 @@ export const getProjectRecipients = async (hackathon) => {
         // 1. Process stored profiles
         memberProfiles.forEach(profile => {
           if (profile.uid && profile.email) {
-            console.log(` - Member (Project Profile): ${profile.email} (${profile.displayName})`);
+            //console.log(` - Member (Project Profile): ${profile.email} (${profile.displayName})`);
             addUser({
               uid: profile.uid,
               email: profile.email,
@@ -69,14 +69,14 @@ export const getProjectRecipients = async (hackathon) => {
         const missingUids = memberUids.filter(uid => !processedUids.has(uid));
         
         if (missingUids.length > 0) {
-          console.warn(`Attempting to fetch ${missingUids.length} missing profiles from Users collection...`);
+          //console.warn(`Attempting to fetch ${missingUids.length} missing profiles from Users collection...`);
           const memberPromises = missingUids.map(uid => getDoc(doc(db, 'users', uid)));
           const memberSnaps = await Promise.all(memberPromises);
 
           memberSnaps.forEach((snap, index) => {
             if (snap.exists()) {
                const userData = snap.data();
-               console.log(` - Member (Live Profile): ${userData.email} (${userData.displayName})`);
+               //console.log(` - Member (Live Profile): ${userData.email} (${userData.displayName})`);
                addUser({
                  uid: snap.id,
                  email: userData.email,
@@ -116,7 +116,7 @@ export const notifyUsers = async (recipients, emailData, notificationData) => {
 
     // 1. Create In-App Notification (Firestore)
     try {
-      console.log(`🔔 Creating In-App Notification for UID: ${user.uid}`);
+      //console.log(`🔔 Creating In-App Notification for UID: ${user.uid}`);
       const docRef = await addDoc(notificationRef, {
         userId: user.uid,
         message: `${emailData.headline}: ${emailData.message}`,
@@ -125,7 +125,7 @@ export const notifyUsers = async (recipients, emailData, notificationData) => {
         createdAt: serverTimestamp(),
         relatedId: notificationData.relatedId
       });
-      console.log(`✅ Notification created with ID: ${docRef.id}`);
+      //console.log(`✅ Notification created with ID: ${docRef.id}`);
     } catch (error) {
       console.error("❌ Error creating notification Firestore:", error);
     }
@@ -145,9 +145,9 @@ export const notifyUsers = async (recipients, emailData, notificationData) => {
 
         // Note: EmailJS might have rate limits on the free tier.
         await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams, EMAILJS_PUBLIC_KEY);
-        console.log(`Email sent to ${user.email}`);
+        //console.log(`Email sent to ${user.email}`);
       } catch (error) {
-        console.error(`Error sending email to ${user.email}:`, error);
+        console.error(`Error sending email:`, error);
       }
     }
   });
@@ -200,7 +200,7 @@ export const checkDeadlines = async (hackathons, currentUser) => {
         await updateDoc(hackathonRef, {
           deadlineWarned: true
         });
-        console.log(`Marked ${hackathon.title} as deadline warned.`);
+        //console.log(`Marked ${hackathon.title} as deadline warned.`);
       } catch (error) {
         console.error("Error updating deadline warning flag:", error);
       }
