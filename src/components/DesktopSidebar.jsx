@@ -3,10 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     LayoutGrid,
     Users,
+    CheckSquare,
+    BookOpen,
     Plus,
     LogOut,
     Command
 } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const NavItem = ({ icon: Icon, label, active, onClick, badge, collapsed }) => (
     <button
@@ -50,6 +53,16 @@ const DesktopSidebar = ({
     renderNotifications
 }) => {
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    const handleTeamsClick = () => {
+        if (onTeamClick) {
+            onTeamClick();
+            return;
+        }
+        navigate('/teams');
+    };
 
     return (
         <motion.aside
@@ -81,8 +94,35 @@ const DesktopSidebar = ({
 
             {/* Navigation Items */}
             <nav className="flex-1 py-6 flex flex-col gap-2 px-3 overflow-y-auto no-scrollbar">
-                <NavItem icon={LayoutGrid} label="Dashboard" active collapsed={isSidebarCollapsed} />
-                <NavItem icon={Users} label="Teams" onClick={onTeamClick} badge={currentTeam ? 'Active' : ''} collapsed={isSidebarCollapsed} />
+                <NavItem
+                    icon={LayoutGrid}
+                    label="Dashboard"
+                    active={location.pathname === '/'}
+                    onClick={() => navigate('/')}
+                    collapsed={isSidebarCollapsed}
+                />
+                <NavItem
+                    icon={Users}
+                    label="Teams"
+                    active={location.pathname === '/teams'}
+                    onClick={handleTeamsClick}
+                    badge={currentTeam ? 'Active' : ''}
+                    collapsed={isSidebarCollapsed}
+                />
+                <NavItem
+                    icon={CheckSquare}
+                    label="Todo"
+                    active={location.pathname === '/todo'}
+                    onClick={() => navigate('/todo')}
+                    collapsed={isSidebarCollapsed}
+                />
+                <NavItem
+                    icon={BookOpen}
+                    label="Resources"
+                    active={location.pathname === '/resources'}
+                    onClick={() => navigate('/resources')}
+                    collapsed={isSidebarCollapsed}
+                />
 
                 {/* Notification Component Wrapper */}
                 <div className="relative group flex items-center p-3 rounded-xl hover:bg-white/5 transition-colors cursor-pointer min-h-[52px]">

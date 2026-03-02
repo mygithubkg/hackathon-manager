@@ -1,303 +1,432 @@
-# 🚀 Hackathon Command Center: The Comprehensive Documentation
+# Hackathon Command Center — Complete Technical README
 
-> **Version**: 2.0.0  
-> **Status**: Production Ready  
-> **Authors**: Google DeepMind Agentic Team & User  
-> **Last Updated**: February 2026
+Last updated: March 2, 2026
 
----
+## 1) What this project is
 
-## 📖 Table of Contents
+This is a Vite + React single-page app for managing hackathon projects in solo mode and team mode.
 
-1.  [🌟 Project Overview](#-project-overview)
-2.  [🧠 Architecture & Philosophy](#-architecture--philosophy)
-3.  [🛠 Technology Stack Deep Dive](#-technology-stack-deep-dive)
-4.  [💾 Database Schema & Data Logic](#-database-schema--data-logic)
-5.  [🔐 Security Infrastructure](#-security-infrastructure)
-6.  [🎨 Design System & UI/UX](#-design-system--uiux)
-7.  [📂 File Structure & Module Breakdown](#-file-structure--module-breakdown)
-8.  [🧩 State Management (Context API)](#-state-management-context-api)
-9.  [⚓ Custom Hooks Reference](#-custom-hooks-reference)
-10. [⚛️ Component Encyclopedia](#-component-encyclopedia)
-    *   [App Entry Point](#app-entry-point)
-    *   [Authentication Components](#authentication-components)
-    *   [Dashboard & Navigation](#dashboard--navigation)
-    *   [Hackathon Card System](#hackathon-card-system)
-    *   [Modals & Forms](#modals--forms)
-    *   [Team Management System](#team-management-system)
-11. [🔄 Operational Workflows](#-operational-workflows)
-12. [💻 Installation & Developer Guide](#-installation--developer-guide)
+Core capabilities:
+- Google authentication (Firebase Auth)
+- Real-time project data (Cloud Firestore)
+- Team creation/joining with invite codes
+- Project cards with tabs for overview, tasks, resources, and quick checklist
+- In-app notifications + deadline alerts + optional email notifications (EmailJS)
+- Dark, glassmorphism, motion-heavy UI (Tailwind + Framer Motion)
 
----
+## 2) How the website works end-to-end
 
-## 🌟 Project Overview
+1. Browser loads `index.html` and mounts React in `#root`.
+2. `src/main.jsx` wraps the app with `BrowserRouter`, `AuthProvider`, and `TeamProvider`.
+3. `src/App.jsx` controls auth gate:
+     - Logged out: shows marketing page (`LandingPage`) or sign-in page (`Login`)
+     - Logged in: enables routes
+4. Authenticated routes:
+     - `/` → `DashboardPage`
+     - `/teams` → `TeamsPage`
+5. `DashboardPage` uses `useFirestore('hackathons')` and `useNotifications(hackathons)`.
+6. CRUD updates are written to Firestore; onSnapshot listeners update UI in real time.
+7. `TeamsPage` switches active team context; dashboard automatically reflects selected context.
 
-The **Hackathon Command Center** is a sophisticated, cloud-native React application designed to act as the central nervous system for competitive developers, hackathon enthusiasts, and engineering teams. It solves the chaos of managing multiple hackathons, deadlines, team resources, and submission requirements by providing a unified, visual interface.
+## 3) Pages, UX, theme, and visual behavior
 
-Unlike simple to-do lists, this application is "Hackathon-Aware". It understands:
-*   **Deadlines**: Calculating real-time countdowns.
-*   **Urgency**: Visually flagging tasks that are due in < 48 hours.
-*   **Teams**: Differentiating between solo side-projects and collaborative squad efforts.
-*   **Assets**: Managing heterogeneous resources like Figma links, GitHub repos, and deployment URLs in one place.
+### Public pages
+- `LandingPage`:
+    - Premium hero marketing layout with feature sections
+    - Animated backgrounds/orbs, cards, and motion transforms
+    - “Launch App” CTA leads to login state
+- `Login`:
+    - 3D tilt card interaction based on cursor movement
+    - Google sign-in button with loader and detailed error handling
 
-The application is built as a **Single Page Application (SPA)** that feels like a native desktop app, utilizing aggressive animations, glassmorphism UI, and optimistic UI updates for a snappy feel.
+### Authenticated pages
+- `DashboardPage`:
+    - Primary workspace for hackathon projects
+    - Desktop sidebar + mobile dock navigation via `DashboardLayout`
+    - Add/Edit modal, notifications modal, grouped project display
+- `TeamsPage`:
+    - Dedicated full page for team context management
+    - Modes: view existing contexts, create team, join team
 
----
+### Design system / UI theme
+- Visual theme: dark cyber/glassmorphism
+- Typography: Space Grotesk (heading), Outfit (body)
+- Interaction: Framer Motion for entrances, hover states, tab transitions, staggered lists
+- Color language:
+    - Indigo/Purple = primary actions
+    - Red = urgent/deletion/critical deadline
+    - Emerald = completed/success
+- Responsive strategy:
+    - Desktop: collapsible left command rail (`DesktopSidebar`)
+    - Mobile: floating bottom dock (`MobileDock`)
 
-## 🧠 Architecture & Philosophy
+## 4) Data model, storage, and connectivity
 
-The architecture follows a **Serverless, Component-Driven** model.
+## 4.1 Firestore collections used
+- `hackathons`
+- `teams`
+- `users`
+- `notifications`
 
-### 1. Client-Side Rendering (CSR)
-We utilize Client-Side Rendering via React to ensure immediate interactivity. The initial bundle is loaded via Vite, and subsequent data is fetched asynchronously. This allows for:
-*   **Rich Interactivity**: Drag-and-drop feels, instant tab switching, and complex animations (Framer Motion) that would be janky with Server-Side Rendering (SSR).
-*   **Decoupled Backend**: The frontend is completely agnostic of the backend implementation details, communicating solely via the Firebase SDK.
+## 4.2 Hackathon document fields (observed from code)
+- Identity/ownership: `ownerId`, `teamId`, `type`
+- Core: `title`, `description`, `status`, `deadline`
+- Nested arrays: `tasks`, `resources`, `checklist`
+- Metadata: `createdAt`, `updatedAt`, optional `deadlineWarned`
 
-### 2. "Context-First" State Management
-Instead of heavy libraries like Redux, we rely on React's native **Context API** for global state (`AuthContext`, `TeamContext`).
-*   **Why?** Our state (User User, Current Team) is relatively stable. Prop drilling is avoided by wrapping the entire `App` in these providers.
-*   **Performance**: To prevent re-renders, we split contexts logically. Updating a team doesn't re-render the authentication tree.
+## 4.3 Team document fields
+- `name`, `inviteCode`, `createdBy`, `createdAt`
+- `members` (uid array)
+- `memberProfiles` ({ uid, email, displayName }[])
 
-### 3. "Security-by-Design"
-Security is not an afterthought; it is baked into the utility layer (`src/utils/security.js`).
-*   **Input Sanitization**: Every user input passed to the database is scrubbed for XSS scripts.
-*   **Rate Limiting**: Custom token-bucket algorithms prevent clients from spamming create/delete operations.
-*   **Validation**: Strict type and length checks prevent database pollution.
+## 4.4 Where data is stored
+- Cloud: Firestore is the source of truth for projects, teams, notifications, user profiles.
+- Local: `useLocalStorage` exists as legacy helper with validation and size limits.
 
----
+## 4.5 How data is stored
+- Firestore writes happen through:
+    - `addDoc`, `updateDoc`, `deleteDoc`, `writeBatch`
+    - `serverTimestamp()` for server-side timestamps
+- Live reads happen via `onSnapshot` listeners.
+- Team-vs-solo filtering:
+    - Team mode: query/filter by `teamId`
+    - Solo mode: query by `ownerId`, then client-side exclude team-owned items
 
-## 🛠 Technology Stack Deep Dive
+## 4.6 Security and validation
+- Input sanitization: text/URL/object sanitizers in `src/utils/security.js`
+- Input safety checks: suspicious patterns detection and length caps
+- Client-side rate limiting: add/update/delete action throttling
+- CSP + referrer policy defined in `index.html`
 
-We carefully selected technologies that balance developer experience (DX) with performance and scalability.
+## 5) Full file inventory with functions per file
 
-### Core Framework
-*   **React 18.3**: Leveraging concurrent features and strict mode. We use functional components exclusively with Hooks (`useState`, `useEffect`, `useMemo`, `useCallback`).
-*   **Vite 5.1**: The build tool of choice. It uses native ES modules during development for instant Hot Module Replacement (HMR) and Rollup for highly optimized production builds.
+Note: This section covers all project files present in the working tree except generated directories (`node_modules`, `.git` internals).
 
-### Styling & Animation
-*   **Tailwind CSS 3.4**: Utility-first CSS.
-    *   *Usage*: We use standard Tailwind classes but extend the theme in `tailwind.config.js` to add custom colors (primary-400, primary-600) and animations.
-    *   *Philosophy*: No separate CSS files for components. Styles are co-located with markup for rapid iteration.
-*   **Framer Motion 11**: The industry standard for React animations.
-    *   *Usage*: We use `<AnimatePresence>` for modal entry/exit and `layout` props for smooth list reordering when items are added/removed.
-*   **Lucide React**: A lightweight, consistent icon library that supports tree-shaking.
+### Root files
 
-### Backend-as-a-Service (BaaS)
-*   **Firebase 10.x**:
-    *   **Authentication**: Google Sign-In provider handles identity management securely (OAuth 2.0).
-    *   **Firestore**: A NoSQL document database. It offers real-time listeners (`onSnapshot`), meaning when one user updates a team project, all other team members see the update *instantly* without refreshing.
+#### `.env`
+- Purpose: runtime secrets and API keys (Firebase + EmailJS)
+- Functions defined: none
 
----
+#### `.env.example`
+- Purpose: template for environment variables
+- Functions defined: none
 
-## 💾 Database Schema & Data Logic
+#### `.firebaserc`
+- Purpose: Firebase project alias config
+- Functions defined: none
 
-We use **Cloud Firestore**, a NoSQL database. Understanding the schema is critical for working on the backend logic.
+#### `.gitignore`
+- Purpose: ignore rules (`node_modules`, `dist`, `.env`, logs, IDE files)
+- Functions defined: none
 
-### Collection: `hackathons`
-This is the primary collection storing project data.
+#### `firebase.json`
+- Purpose: Firebase CLI config (functions source + ignore patterns)
+- Functions defined: none
 
-**Document Structure:**
-```json
-{
-  "id": "auto_generated_uuid",
-  "title": "String (Limit 100 chars)",
-  "description": "String (Limit 1000 chars)",
-  "status": "Enum ['Upcoming', 'Ongoing', 'Planning', 'Completed']",
-  "type": "Enum ['solo', 'team']",
-  
-  // Ownership & Access Control
-  "ownerId": "uid_of_creator",   // The user who created it
-  "teamId": "team_uuid_or_null", // If null, it's a solo project. If set, it belongs to that team.
-  
-  // Dates
-  "deadline": "ISO_8601_DateTime_String", // Optional
-  "createdAt": "ServerTimestamp",
-  "updatedAt": "ServerTimestamp",
-  
-  // Nested Objects (Sub-resources)
-  "resources": [
-    {
-      "id": "timestamp_string",
-      "label": "String",
-      "url": "String",
-      "type": "Enum ['GitHub', 'Figma', ...]",
-      "addedAt": "ISO_String"
-    }
-  ],
-  
-  "tasks": [
-    {
-      "id": "timestamp",
-      "text": "String",
-      "done": "Boolean",
-      "deadline": "ISO_Date_String (Optional)"
-    }
-  ],
-  
-  "checklist": [
-    // Simpler version of tasks for the 'Quick Tasks' tab
-    { "id": "...", "text": "...", "completed": false }
-  ]
-}
-```
+#### `index.html`
+- Purpose: SPA host document, CSP, referrer policy, app root, module entry
+- Functions defined: none
 
-### Collection: `teams`
-Stores team metadata and membership.
+#### `package.json`
+- Purpose: project metadata, scripts, dependencies
+- Functions defined: none
 
-**Document Structure:**
-```json
-{
-  "id": "auto_generated_uuid",
-  "name": "String (e.g., 'Code Ninjas')",
-  "inviteCode": "String (Unique 6-char alphanumeric, e.g., 'A1B2C3')",
-  "createdBy": "uid_of_creator",
-  "createdAt": "ServerTimestamp",
-  "members": [
-    "uid_user_1",
-    "uid_user_2",
-    "uid_user_3"
-  ]
-}
-```
+#### `package-lock.json`
+- Purpose: deterministic dependency lockfile
+- Functions defined: none
 
-### Data Access Patterns (Query Logic)
-The `useFirestore` hook handles the complex querying logic:
+#### `postcss.config.js`
+- Purpose: PostCSS plugins (`tailwindcss`, `autoprefixer`)
+- Functions defined: none (exports config object)
 
-1.  **Solo Mode**:
-    *   Query: `hackathons.where('ownerId', '==', currentUser.uid)`
-    *   Filter: Client-side filter removes any item where `teamId` is not null.
-2.  **Team Mode**:
-    *   Query: `hackathons.where('teamId', '==', currentTeam.id)`
-    *   Result: Returns all projects belonging to the team, regardless of who created them.
+#### `tailwind.config.js`
+- Purpose: Tailwind content globs, extended color palette, animations, keyframes
+- Functions defined: none (exports config object)
 
----
+#### `vite.config.js`
+- Purpose: Vite + React plugin config, dev server port/open behavior
+- Functions defined:
+    - default export `defineConfig(...)`
 
-## 🔐 Security Infrastructure
+#### `README.md`
+- Purpose: technical documentation for the project
+- Functions defined: none
 
-Security is handled at both the Application Level (client-side) and Database Level (Firebase Rules).
+#### `.github/copilot-instructions.md`
+- Purpose: workspace-level Copilot guidance
+- Functions defined: none
 
-### 1. `src/utils/security.js`
-This module exports critical functions used throughout the app:
+#### `srcpages/` (empty directory)
+- Purpose: currently unused
+- Functions defined: none
 
-*   **`sanitizeText(text)`**:
-    *   Replaces characters like `<`, `>`, `&`, `"`, `'` with HTML entities.
-    *   Used in `HackathonCard` to prevents Stored XSS attacks when rendering titles/descriptions.
-*   **`sanitizeURL(url)`**:
-    *   Blocks `javascript:`, `data:`, and `vbscript:` protocols.
-    *   Forces `https://` if no protocol is present.
-    *   Used in `ResourceManager` before saving links.
-*   **`RateLimiter` Class**:
-    *   Implements a Token Bucket algorithm in memory.
-    *   Example: `addHackathonLimiter` allows max 5 requests per minute.
-    *   If a user tries to spam the "Add" button, the request is intercepted before hitting Firebase.
-*   **`sanitizeObject(obj, allowedKeys)`**:
-    *   Prevents **Prototype Pollution**.
-    *   Strips `__proto__`, `constructor`, and `prototype` keys.
-    *   Whitelists only expected keys (e.g., `title`, `status`) and discards any junk data injected by a malicious client.
+### `src/` files
 
-### 2. Authentication Logic
-Located in `src/contexts/AuthContext.jsx`.
-*   Uses `signInWithPopup` with `GoogleAuthProvider`.
-*   We forcefully set `prompt: 'select_account'` to ensure the Google account chooser always appears, preventing auto-login loops with the wrong account.
+#### `src/main.jsx`
+- Purpose: React bootstrap and provider composition
+- Functions defined: none named
+- Key calls:
+    - `ReactDOM.createRoot(...).render(...)`
 
----
+#### `src/App.jsx`
+- Purpose: auth gate + top-level route switch
+- Functions defined:
+    - `App()`
 
-## 🎨 Design System & UI/UX
+#### `src/firebase.js`
+- Purpose: Firebase app initialization and shared service exports
+- Functions defined:
+    - `checkFirebaseConfig()`
+- Exports:
+    - `db`, `auth`, `googleProvider`, default `app`
 
-We use a "Dark Glass" aesthetic inspired by modern developer tools (like Linear, Vercel).
+#### `src/index.css`
+- Purpose: Tailwind layers + global classes + reusable utility classes
+- Functions defined: none
 
-### Color Palette (Tailwind)
-*   **Background**: `bg-gray-900` (#0c4a6e) to `bg-black` (#000000). We use deep gradients to avoid flat, boring blacks.
-*   **Primary**: `indigo-500` to `purple-600`. Used for "Call to Actions" and accents.
-*   **Success**: `emerald-400`. Used for "Completed" status and checklist items.
-*   **Danger**: `red-500`. Used for deletions and "Urgent/Overdue" flags.
-*   **Glass**: `bg-white/5` or `bg-black/20` with `backdrop-blur-xl`. This creates the frosted glass effect.
+### `src/hooks/`
 
-### Typography
-*   **Headings**: `Space Grotesk`. A geometric sans-serif with quirky details, giving a "tech" feel.
-*   **Body**: `Outfit`. A clean, highly legible sans-serif for dense information.
+#### `src/hooks/useFirestore.js`
+- Purpose: Firestore CRUD + realtime sync hook
+- Functions defined:
+    - `useFirestore(collectionName)`
+    - `addItem(item)`
+    - `updateItem(id, updates)`
+    - `deleteItem(id)`
 
-### Component Styling Rules
-1.  **Cards**: Must have `rounded-2xl` and a subtle border `border-white/10`.
-2.  **Hover Effects**: All interactive elements must scale (`scale-105`) or brighten on hover.
-3.  **Transitions**: Use `transition-all duration-300` for smooth state changes.
-4.  **Scrollbars**: Custom thin scrollbars defined in `index.css` to match the dark theme.
+#### `src/hooks/useLocalStorage.js`
+- Purpose: secure localStorage state hook (legacy helper)
+- Functions defined:
+    - `useLocalStorage(key, initialValue)`
+    - `setValue(value)`
+    - `handleStorageChange(e)` (inside effect)
 
----
+#### `src/hooks/useNotifications.js`
+- Purpose: deadline alert computation + Firestore notification listener/actions
+- Functions defined:
+    - `useNotifications(hackathons)`
+    - `calculateAlerts()` (inside effect)
+    - `markAllRead()`
+    - `deleteNotification(id)`
+    - `clearAllNotifications()`
 
-## 📂 File Structure & Module Breakdown
+### `src/contexts/`
 
-This comprehensive tree explains every file in the `src` directory.
+#### `src/contexts/AuthContext.jsx`
+- Purpose: auth state, login/logout methods, user profile sync
+- Functions defined:
+    - `useAuth()`
+    - `AuthProvider({ children })`
+    - `login()`
+    - `logout()`
 
-```text
-src/
-├── components/                 # UI Components
-│   ├── AddModal.jsx           # The "Create/Edit" overlay form
-│   ├── Dashboard.jsx          # GRID view controller for hackathons
-│   ├── HackathonCard.jsx      # The complex card UI (tabs, progress, timers)
-│   ├── LandingPage.jsx        # Public marketing page for logged-out users
-│   ├── Login.jsx              # 3D Tilt login card component
-│   ├── NotificationBell.jsx   # Polls for deadlines < 6 hours
-│   ├── ResourceManager.jsx    # Sub-component for managing URL lists
-│   └── TeamManager.jsx        # Sidebar/Modal for creating & joining teams
-│
-├── contexts/                   # React Context Providers
-│   ├── AuthContext.jsx        # Handles Firebase Auth user state
-│   └── TeamContext.jsx        # Handles Team selection, creation, and members
-│
-├── hooks/                      # Custom Logic Hooks
-│   ├── useFirestore.js        # The core data layer (CRUD + Realtime Sync)
-│   └── useLocalStorage.js     # (Legacy) Kept for non-critical local preferences
-│
-├── utils/                      # Helper Functions
-│   └── security.js            # XSS protection, rate limiting, validation
-│
-├── App.jsx                     # Main Application Controller
-├── firebase.js                 # Firebase initialization & config export
-├── index.css                   # Global Tailwind imports & custom classes
-└── main.jsx                    # React Root entry point
-```
+#### `src/contexts/TeamContext.jsx`
+- Purpose: team membership state and team operations
+- Functions defined:
+    - `useTeam()`
+    - `TeamProvider({ children })`
+    - `generateInviteCode()`
+    - `createTeam(teamName)`
+    - `joinTeam(code)`
+    - `switchTeam(teamId)`
 
----
+### `src/utils/`
 
-## 🧩 State Management (Context API)
+#### `src/utils/security.js`
+- Purpose: security helper library
+- Functions/classes defined:
+    - `sanitizeText(text)`
+    - `sanitizeURL(url)`
+    - `validateLength(input, maxLength)`
+    - `isInputSafe(input)`
+    - `sanitizeObject(obj, allowedKeys)`
+    - `createSafeHTML(html)`
+    - `isValidDate(dateString)`
+    - `RateLimiter` class
+        - `constructor(maxRequests, timeWindow)`
+        - `canProceed(action)`
+        - `reset(action)`
+- Instances exported:
+    - `addHackathonLimiter`
+    - `deleteHackathonLimiter`
+    - `updateHackathonLimiter`
 
-### 1. AuthContext (`src/contexts/AuthContext.jsx`)
-*   **State**: `currentUser` (User Object), `loading` (Boolean).
-*   **Logic**:
-    *   Initializes `onAuthStateChanged` listener on mount.
-    *   Exposes `login()` wrapper for Google Sign-In.
-    *   Exposes `logout()` wrapper for Firebase Sign-Out.
-*   **Usage**: Wrapped around the entire app in `main.jsx` so `currentUser` is available everywhere.
+#### `src/utils/notifications.js`
+- Purpose: recipients discovery, notification fan-out, deadline warning workflow
+- Functions defined:
+    - `getProjectRecipients(hackathon)`
+    - `addUser(user)` (inner helper)
+    - `notifyUsers(recipients, emailData, notificationData)`
+    - `checkDeadlines(hackathons, currentUser)`
 
-### 2. TeamContext (`src/contexts/TeamContext.jsx`)
-*   **State**: `currentTeam` (Object | null), `userTeams` (Array).
-*   **Logic**:
-    *   **Listeners**: Listens to `teams` collection where `members` array contains `currentUser.uid`.
-    *   **Switching**: When `currentTeam` is null, the app is in "Solo Mode". When set, it enters "Team Mode".
-    *   **Operations**: `createTeam` (generates code), `joinTeam` (validates code).
+#### `src/utils/emailConfig.js`
+- Purpose: EmailJS environment-backed constants
+- Functions defined: none
+- Exports:
+    - `EMAILJS_SERVICE_ID`
+    - `EMAILJS_TEMPLATE_ID`
+    - `EMAILJS_PUBLIC_KEY`
 
----
+### `src/pages/`
 
-## ⚓ Custom Hooks Reference
+#### `src/pages/DashboardPage.jsx`
+- Purpose: authenticated dashboard orchestration page
+- Functions defined:
+    - `DashboardPage()`
+    - `handleTeamClick()`
+    - `handleAddHackathon(hackathon)`
+    - `handleUpdateHackathon(id, updatedData)`
+    - `handleDeleteHackathon(id)`
+    - `handleEditClick(hackathon)`
+    - `handleCloseModal()`
 
-### `useFirestore(collectionName)`
-This is the most critical hook in the application.
+#### `src/pages/TeamsPage.jsx`
+- Purpose: standalone team management page
+- Functions defined:
+    - `TeamsPage()`
+    - `handleTeamSelect(teamId)`
+    - `handleCreate(e)`
+    - `handleJoin(e)`
+    - `copyToClipboard(text, id)`
+    - `Background()`
+    - `TeamCard({ team, isSolo })`
+    - `ActionCard({ title, icon, onClick, colorClass })`
 
-**Parameters**: `collectionName` (String) - usually 'hackathons'.
+### `src/components/`
 
-**Returns**:
-*   `data` (Array): The real-time list of documents.
-*   `loading` (Boolean): True while initial fetch happens.
-*   `error` (String | null): Error message if fetch fails.
-*   `addItem(item)`: Async function to add doc.
-*   `updateItem(id, updates)`: Async function to patch doc.
-*   `deleteItem(id)`: Async function to remove doc.
+#### `src/components/AddModal.jsx`
+- Purpose: create/edit project modal with validation and resource embedding
+- Functions defined:
+    - `InputField({ label, icon, ...props })`
+    - `SelectField({ label, icon, children, ...props })`
+    - `AddModal({ isOpen, onClose, onSave, editingHackathon })`
+    - `handleSubmit(e)`
 
-**Internal Logic**:
-1.  Checks if `currentUser` exists. If not, returns empty data.
-2.  Checks `TeamContext`.
-3.  If `currentTeam` is set -> Sets up listener for `where('teamId', '==', currentTeam.id)`.
+#### `src/components/Dashboard.jsx`
+- Purpose: dashboard sectioning, filtering, sorting, grouping, empty-state handling
+- Functions defined:
+    - `StatCard({ label, value, icon, colorClass, delay })`
+    - `Dashboard({ hackathons, onEdit, onDelete, onUpdate, isTeamView })`
+    - `handleSecureDelete(id)`
+
+#### `src/components/DashboardLayout.jsx`
+- Purpose: shared authenticated layout with ambient background + nav wrappers
+- Functions defined:
+    - `DashboardLayout({ ...props })`
+    - `AmbientBackground()`
+
+#### `src/components/DesktopSidebar.jsx`
+- Purpose: desktop command-rail navigation
+- Functions defined:
+    - `NavItem({ icon, label, active, onClick, badge, collapsed })`
+    - `DesktopSidebar({ user, currentTeam, onLogout, onAddClick, onTeamClick, renderNotifications })`
+
+#### `src/components/HackathonCard.jsx`
+- Purpose: main project card with multi-tab interactive controls
+- Functions defined:
+    - `HackathonCard({ hackathon, onEdit, onDelete, onUpdate, updateHackathon })`
+    - `calculateTime()` (inside effect)
+    - `handleAddTask(e)`
+    - `toggleTask(taskId)`
+    - `removeTask(taskId)`
+    - `handleAddTaskItem(e)`
+    - `toggleTaskItem(taskId)`
+    - `removeTaskItem(taskId)`
+    - `handleAddResource(e)`
+    - `removeResource(resourceId)`
+    - `getResourceIcon(type)`
+
+#### `src/components/LandingPage.jsx`
+- Purpose: pre-auth marketing and product narrative experience
+- Functions defined:
+    - `GlobalStyles()`
+    - `DashboardPreview()`
+    - `TeamPreview()`
+    - `NotificationPreview()`
+    - `ResourcesPreview()`
+    - `FeatureSection({ title, description, badge, Icon, VisualComponent, reversed })`
+    - `FeatureCard({ icon, title, description, delay })`
+    - `handleMouseMove({ currentTarget, clientX, clientY })` (inside `FeatureCard`)
+    - `TechStack()`
+    - `LandingPage({ onGetStarted })`
+
+#### `src/components/Login.jsx`
+- Purpose: auth entry with animated 3D interaction
+- Functions defined:
+    - `GlobalStyles()`
+    - `Login()`
+    - `handleMouseMove(event)`
+    - `handleMouseLeave()`
+    - `handleLogin()`
+
+#### `src/components/MobileDock.jsx`
+- Purpose: mobile navigation dock and profile actions
+- Functions defined:
+    - `MobileNavItem({ icon, label, active, onClick })`
+    - `MobileProfileItem({ user, onLogout })`
+    - `MobileDock({ user, onLogout, onAddClick, onTeamClick, renderNotifications })`
+
+#### `src/components/NotificationBell.jsx`
+- Purpose: bell action + unread badge surface
+- Functions defined:
+    - `NotificationBell({ unreadCount, totalCount, hasAlerts, onBellClick, className })`
+
+#### `src/components/NotificationModal.jsx`
+- Purpose: centered modal for deadline + message notifications
+- Functions defined:
+    - `NotificationModal({ isOpen, onClose, notifications, deadlineAlerts, onMarkRead, onClearAll, onDelete, unreadCount, totalCount })`
+    - `handleClickOutside(event)` (inside effect)
+    - `getNotifStyle(type)`
+
+#### `src/components/ResourceManager.jsx`
+- Purpose: add/remove resource links with security validation
+- Functions defined:
+    - `ResourceManager({ resources, onChange })`
+    - `handleAddResource()`
+    - `handleRemoveResource(id)`
+    - `handleKeyPress(e)`
+
+#### `src/components/TeamManager.jsx`
+- Purpose: team management component (legacy/optional panel style)
+- Functions defined:
+    - `TeamManager({ onClose })`
+    - `handleCreate(e)`
+    - `handleJoin(e)`
+    - `copyCode()`
+
+## 6) Connection map (which part talks to which)
+
+- UI Components (`src/components/*`) call page handlers from `src/pages/*`.
+- Page handlers call hooks (`useFirestore`, `useNotifications`) and context actions (`useAuth`, `useTeam`).
+- Hooks and contexts call Firebase SDK (`src/firebase.js` services).
+- Utility layer (`security.js`, `notifications.js`) is consumed by components/pages/hooks.
+- Notification pipeline:
+    - action occurs in UI → helper builds recipient list → writes Firestore notifications + optional EmailJS mail
+
+## 7) Current route map
+
+- `/` while logged out:
+    - `LandingPage` (default)
+    - `Login` (when “Get Started” toggles login view)
+- `/` while logged in:
+    - `DashboardPage`
+- `/teams` while logged in:
+    - `TeamsPage`
+- `*`:
+    - redirect to `/`
+
+## 8) Build/run notes
+
+- Dev server: `npm run dev` (configured for port 3000)
+- Production build: `npm run build`
+- Preview build: `npm run preview`
+
+## 9) Important implementation notes
+
+- `Planning` exists in UI status options, but AddModal validation currently allows only `Upcoming`, `Ongoing`, `Completed`.
+- `TeamManager.jsx` exists but the primary team UX route is `TeamsPage.jsx`.
+- `.env` currently holds live-looking credentials; keep this file private and rotate secrets if exposed.
 4.  If `currentTeam` is null -> Sets up listener for `where('ownerId', '==', currentUser.uid)`.
 5.  Updates `data` state whenever the listener fires (Real-time).
 

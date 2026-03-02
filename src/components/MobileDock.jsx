@@ -3,17 +3,20 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     LayoutGrid,
     Users,
+    CheckSquare,
+    BookOpen,
     Plus,
     LogOut
 } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const MobileNavItem = ({ icon: Icon, label, active, onClick }) => (
     <button
         onClick={onClick}
-        className={`flex flex-col items-center justify-center w-12 gap-1 ${active ? 'text-indigo-400' : 'text-gray-400'}`}
+        className={`flex flex-col items-center justify-center gap-1 min-w-0 ${active ? 'text-indigo-400' : 'text-gray-400'}`}
     >
-        <Icon size={20} strokeWidth={2.5} />
-        <span className="text-[10px] font-bold uppercase tracking-wider">{label}</span>
+        <Icon size={18} strokeWidth={2.5} />
+        <span className="text-[9px] font-bold uppercase tracking-wider truncate max-w-full">{label}</span>
     </button>
 );
 
@@ -24,7 +27,7 @@ const MobileProfileItem = ({ user, onLogout }) => {
         <div className="relative">
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="flex flex-col items-center justify-center w-12 gap-1"
+                className="flex flex-col items-center justify-center gap-1 min-w-0"
             >
                 <div className="w-6 h-6 rounded-full overflow-hidden border border-gray-600">
                     {user?.photoURL ? (
@@ -33,7 +36,7 @@ const MobileProfileItem = ({ user, onLogout }) => {
                         <div className="w-full h-full bg-gray-700" />
                     )}
                 </div>
-                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Me</span>
+                <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Me</span>
             </button>
 
             <AnimatePresence>
@@ -74,31 +77,76 @@ const MobileDock = ({
     onTeamClick,
     renderNotifications
 }) => {
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    const handleTeamsClick = () => {
+        if (onTeamClick) {
+            onTeamClick();
+            return;
+        }
+        navigate('/teams');
+    };
+
     return (
         <div className="md:hidden fixed bottom-6 left-4 right-4 z-50">
-            <div className="glass-panel backdrop-blur-2xl bg-gray-900/80 border border-white/10 rounded-2xl shadow-2xl flex items-center justify-between p-2 px-6 relative">
-                {/* Navigation Items */}
-                <MobileNavItem icon={LayoutGrid} label="Home" active />
-                <MobileNavItem icon={Users} label="Teams" onClick={onTeamClick} />
+            <div className="glass-panel backdrop-blur-2xl bg-gray-900/80 border border-white/10 rounded-2xl shadow-2xl relative px-2 pt-2 pb-1">
+                <div className="grid grid-cols-7 items-end gap-1">
+                    <div className="flex justify-center">
+                        <MobileNavItem
+                            icon={LayoutGrid}
+                            label="Home"
+                            active={location.pathname === '/'}
+                            onClick={() => navigate('/')}
+                        />
+                    </div>
 
-                {/* Floating Add Button (Center) */}
-                <div className="relative -top-8">
-                    <motion.button
-                        whileTap={{ scale: 0.9 }}
-                        onClick={onAddClick}
-                        className="w-14 h-14 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 border-4 border-[#050505] shadow-lg shadow-indigo-500/40 flex items-center justify-center text-white"
-                    >
-                        <Plus size={28} />
-                    </motion.button>
+                    <div className="flex justify-center">
+                        <MobileNavItem
+                            icon={Users}
+                            label="Teams"
+                            active={location.pathname === '/teams'}
+                            onClick={handleTeamsClick}
+                        />
+                    </div>
+
+                    <div className="flex justify-center">
+                        <MobileNavItem
+                            icon={CheckSquare}
+                            label="Todo"
+                            active={location.pathname === '/todo'}
+                            onClick={() => navigate('/todo')}
+                        />
+                    </div>
+
+                    <div className="flex justify-center">
+                        <MobileNavItem
+                            icon={BookOpen}
+                            label="Resources"
+                            active={location.pathname === '/resources'}
+                            onClick={() => navigate('/resources')}
+                        />
+                    </div>
+
+                    <div className="flex justify-center relative -top-5">
+                        <motion.button
+                            whileTap={{ scale: 0.9 }}
+                            onClick={onAddClick}
+                            className="w-12 h-12 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 border-4 border-[#050505] shadow-lg shadow-indigo-500/40 flex items-center justify-center text-white"
+                        >
+                            <Plus size={24} />
+                        </motion.button>
+                    </div>
+
+                    <div className="flex flex-col items-center justify-center min-w-0">
+                        {renderNotifications && renderNotifications({ align: 'dock' })}
+                        <span className="text-[9px] text-gray-500 mt-1 uppercase tracking-wider font-bold">Alerts</span>
+                    </div>
+
+                    <div className="flex justify-center">
+                        <MobileProfileItem user={user} onLogout={onLogout} />
+                    </div>
                 </div>
-
-                {/* Right Side Items */}
-                <div className="flex flex-col items-center justify-center w-10">
-                    {renderNotifications && renderNotifications({ align: 'dock' })}
-                    <span className="text-[10px] text-gray-500 mt-1 uppercase tracking-wider font-bold">Alerts</span>
-                </div>
-
-                <MobileProfileItem user={user} onLogout={onLogout} />
             </div>
         </div>
     );
