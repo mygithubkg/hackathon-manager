@@ -12,6 +12,7 @@ import DashboardPage from './pages/DashboardPage';
 import TeamsPage from './pages/TeamsPage';
 import TodoPage from './pages/TodoPage';
 import ResourcesPage from './pages/ResourcesPage';
+import SnippetsPage from './pages/SnippetsPage';
 
 /**
  * App Router Component
@@ -47,6 +48,7 @@ function App() {
       <Route path="/teams" element={<TeamsPage />} />
       <Route path="/todo" element={<TodoPage />} />
       <Route path="/resources" element={<ResourcesPage />} />
+      <Route path="/snippets" element={<SnippetsPage />} />
       {/* Fallback route */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

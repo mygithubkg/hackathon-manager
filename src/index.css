@@ -5,6 +5,19 @@
 
 /* Global styles for dark mode aesthetic */
 @layer base {
+  :root {
+    --safe-top: env(safe-area-inset-top);
+    --safe-bottom: env(safe-area-inset-bottom);
+  }
+
+  html,
+  body,
+  #root {
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
   body {
     @apply bg-gray-900 text-gray-100 font-sans antialiased;
   }
@@ -33,6 +46,16 @@
 
   ::-webkit-scrollbar-thumb:hover {
     @apply bg-gray-500;
+  }
+}
+
+@media (max-width: 767px) {
+  html {
+    font-size: 14px;
+  }
+
+  body {
+    overscroll-behavior-y: contain;
   }
 }
 
@@ -121,4 +144,21 @@
 
 .react-calendar-dark .react-calendar__month-view__days__day--neighboringMonth {
   color: #6b7280;
+}
+
+@keyframes shimmer-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.12) 50%, rgba(255, 255, 255, 0.03) 100%);
+  animation: shimmer-slide 1.2s linear infinite;
 }

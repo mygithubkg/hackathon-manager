@@ -5,6 +5,7 @@ import {
     Users,
     CheckSquare,
     BookOpen,
+    Clipboard,
     Plus,
     LogOut,
     Command
@@ -121,6 +122,13 @@ const DesktopSidebar = ({
                     label="Resources"
                     active={location.pathname === '/resources'}
                     onClick={() => navigate('/resources')}
+                    collapsed={isSidebarCollapsed}
+                />
+                <NavItem
+                    icon={Clipboard}
+                    label="Snippets"
+                    active={location.pathname === '/snippets'}
+                    onClick={() => navigate('/snippets')}
                     collapsed={isSidebarCollapsed}
                 />
 

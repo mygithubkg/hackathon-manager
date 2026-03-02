@@ -57,6 +57,19 @@ const getReadableFirestoreError = (listenerError) => {
   return listenerError?.message || 'Something went wrong while loading todos.';
 };
 
+const getWeekDates = (selectedDate) => {
+  const base = new Date(selectedDate);
+  const day = base.getDay();
+  const sunday = new Date(base);
+  sunday.setDate(base.getDate() - day);
+
+  return Array.from({ length: 7 }).map((_, index) => {
+    const date = new Date(sunday);
+    date.setDate(sunday.getDate() + index);
+    return date;
+  });
+};
+
 function TodoPage() {
   const navigate = useNavigate();
   const { currentUser, logout } = useAuth();
@@ -67,6 +80,7 @@ function TodoPage() {
   const [error, setError] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [deleteCandidate, setDeleteCandidate] = useState(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -146,6 +160,8 @@ function TodoPage() {
       return 0;
     });
   }, [todosByDate, selectedDateKey]);
+
+  const weekDates = useMemo(() => getWeekDates(selectedDate), [selectedDate]);
 
   const handleAddTodo = async (event) => {
     event.preventDefault();
@@ -229,8 +245,6 @@ function TodoPage() {
       return;
     }
 
-    if (!window.confirm('Delete this task?')) return;
-
     try {
       await deleteDoc(doc(db, 'todos', todoId));
     } catch (deleteError) {
@@ -266,34 +280,61 @@ function TodoPage() {
       onAddClick={() => navigate('/')}
       onTeamClick={() => navigate('/teams')}
     >
-      <div className="space-y-6">
+      <div className="space-y-5 md:space-y-6">
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           className="flex items-center justify-between"
         >
           <div>
-            <h1 className="text-3xl font-heading font-bold text-white flex items-center gap-3">
-              <CheckSquare className="text-indigo-400" />
+            <h1 className="text-xl md:text-3xl font-heading font-bold text-white flex items-center gap-2 md:gap-3 tracking-tight">
+              <CheckSquare className="text-indigo-400" size={20} />
               Todo Command Center
             </h1>
-            <p className="text-sm text-gray-400 mt-1">
+            <p className="text-xs md:text-sm text-gray-400 mt-1">
               {currentTeam ? `Shared team tasks for ${currentTeam.name}` : 'Private solo task planning'}
             </p>
           </div>
         </motion.div>
 
         {error && (
-          <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-red-300">
+          <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-3 md:p-4 text-red-300 text-xs md:text-sm">
             {error}
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">
+        <div className="md:hidden">
+          <div className="overflow-x-auto no-scrollbar">
+            <div className="flex gap-2 min-w-max">
+              {weekDates.map((date) => {
+                const key = formatDateKey(date);
+                const active = key === selectedDateKey;
+                const hasTasks = (todosByDate.get(key) || []).length > 0;
+                return (
+                  <motion.button
+                    whileTap={{ scale: 0.96 }}
+                    key={key}
+                    onClick={() => setSelectedDate(date)}
+                    className={`min-h-[56px] min-w-[56px] rounded-2xl border px-2 py-2 flex flex-col items-center justify-center ${active
+                      ? 'bg-indigo-600/80 border-indigo-400/40 text-white'
+                      : 'bg-black/30 border-white/10 text-white/70'
+                      }`}
+                  >
+                    <span className="text-[10px] uppercase tracking-wider">{date.toLocaleDateString('en-US', { weekday: 'narrow' })}</span>
+                    <span className="text-sm font-semibold leading-none mt-1">{date.getDate()}</span>
+                    <span className={`mt-1 h-1.5 w-1.5 rounded-full ${hasTasks ? 'bg-emerald-400' : 'bg-transparent'}`} />
+                  </motion.button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-4 md:gap-6">
           <motion.div
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
-            className="glass-panel rounded-2xl border border-white/10 bg-black/30 backdrop-blur-xl p-4"
+            className="hidden md:block glass-panel rounded-2xl border border-white/10 bg-black/30 backdrop-blur-xl p-4"
           >
             <div className="mb-4 flex items-center gap-2 text-gray-300 font-semibold">
               <CalendarDays size={18} className="text-indigo-400" />
@@ -310,10 +351,10 @@ function TodoPage() {
           <motion.div
             initial={{ opacity: 0, x: 10 }}
             animate={{ opacity: 1, x: 0 }}
-            className="relative rounded-2xl border border-white/10 bg-black/30 backdrop-blur-xl p-5 min-h-[420px]"
+            className="relative rounded-2xl border border-white/10 bg-black/30 backdrop-blur-xl p-3 md:p-5 min-h-[420px]"
           >
-            <div className="mb-5">
-              <h2 className="text-xl font-heading font-bold text-white">
+            <div className="mb-4 md:mb-5">
+              <h2 className="text-sm md:text-xl font-heading font-bold text-white">
                 Tasks for {new Date(selectedDate).toLocaleDateString('en-US', {
                   weekday: 'long',
                   month: 'long',
@@ -324,10 +365,19 @@ function TodoPage() {
             </div>
 
             {loading ? (
-              <div className="text-gray-400">Loading tasks...</div>
+              <div className="space-y-2">
+                {[1, 2, 3].map((item) => (
+                  <div key={item} className="h-16 rounded-xl border border-white/10 bg-white/5 overflow-hidden relative">
+                    <div className="absolute inset-0 shimmer" />
+                  </div>
+                ))}
+              </div>
             ) : selectedTodos.length === 0 ? (
               <div className="h-[300px] rounded-2xl border border-dashed border-white/10 bg-white/5 flex items-center justify-center text-center p-6">
-                <p className="text-gray-400">No tasks scheduled for this day. Add one below ✦</p>
+                <div>
+                  <div className="text-6xl mb-3">🗂️</div>
+                  <p className="text-gray-400 text-xs md:text-sm">No tasks scheduled for this day. Add one below ✦</p>
+                </div>
               </div>
             ) : (
               <motion.div
@@ -337,15 +387,15 @@ function TodoPage() {
                   hidden: { opacity: 0 },
                   visible: { opacity: 1, transition: { staggerChildren: 0.08 } }
                 }}
-                className="space-y-3 pb-20"
+                className="space-y-2 md:space-y-3 pb-20"
               >
                 {selectedTodos.map((todo) => (
                   <motion.div
                     key={todo.id}
                     variants={{ hidden: { opacity: 0, x: 20 }, visible: { opacity: 1, x: 0 } }}
-                    className={`border border-white/10 border-l-4 rounded-xl p-4 ${priorityStyles[todo.priority] || priorityStyles.medium}`}
+                    className={`border border-white/10 border-l-4 rounded-2xl p-3 md:p-4 ${priorityStyles[todo.priority] || priorityStyles.medium}`}
                   >
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-start gap-2 md:gap-3">
                       <input
                         type="checkbox"
                         checked={!!todo.completed}
@@ -354,27 +404,28 @@ function TodoPage() {
                       />
 
                       <div className="flex-1 min-w-0">
-                        <p className={`font-semibold ${todo.completed ? 'line-through text-gray-500' : 'text-white'}`}>
+                        <p className={`text-sm md:text-base font-semibold ${todo.completed ? 'line-through text-gray-500' : 'text-white'}`}>
                           {todo.title}
                         </p>
                         {todo.description && (
-                          <p className={`mt-1 text-sm ${todo.completed ? 'text-gray-600' : 'text-gray-400'}`}>
+                          <p className={`mt-1 text-xs md:text-sm ${todo.completed ? 'text-gray-600' : 'text-gray-400'}`}>
                             {todo.description}
                           </p>
                         )}
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <span className="text-xs px-2 py-1 rounded-full bg-white/10 text-gray-200 capitalize">
+                        <span className="text-[10px] md:text-xs px-2 py-1 rounded-full bg-white/10 text-gray-200 capitalize">
                           {todo.priority || 'medium'}
                         </span>
-                        <button
-                          onClick={() => handleDeleteTodo(todo.id)}
-                          className="p-2 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10"
+                        <motion.button
+                          whileTap={{ scale: 0.96 }}
+                          onClick={() => setDeleteCandidate(todo)}
+                          className="min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 p-2 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10"
                           title="Delete task"
                         >
                           <Trash2 size={16} />
-                        </button>
+                        </motion.button>
                       </div>
                     </div>
                   </motion.div>
@@ -384,110 +435,174 @@ function TodoPage() {
 
             <motion.button
               whileHover={{ scale: 1.03, y: -2 }}
-              whileTap={{ scale: 0.97 }}
+              whileTap={{ scale: 0.96 }}
               onClick={() => setIsAddOpen(true)}
-              className="absolute bottom-5 right-5 inline-flex items-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold shadow-lg shadow-indigo-500/30"
+              className="hidden md:inline-flex absolute bottom-5 right-5 items-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold shadow-lg shadow-indigo-500/30"
             >
               <Plus size={18} />
               Add Task
             </motion.button>
-
-            <AnimatePresence>
-              {isAddOpen && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="absolute inset-0 bg-black/70 backdrop-blur-sm rounded-2xl flex items-center justify-center p-4"
-                >
-                  <motion.form
-                    initial={{ opacity: 0, y: 15, scale: 0.98 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.98 }}
-                    onSubmit={handleAddTodo}
-                    className="w-full max-w-lg rounded-2xl border border-white/10 bg-gray-900/90 p-5 space-y-4"
-                  >
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-heading font-bold text-white">Add New Task</h3>
-                      <button
-                        type="button"
-                        onClick={() => setIsAddOpen(false)}
-                        className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-
-                    <div>
-                      <label className="text-sm text-gray-300">Title</label>
-                      <input
-                        value={formData.title}
-                        onChange={(event) => setFormData((prev) => ({ ...prev, title: event.target.value }))}
-                        className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        placeholder="Task title"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-sm text-gray-300">Description (optional)</label>
-                      <textarea
-                        rows={3}
-                        value={formData.description}
-                        onChange={(event) => setFormData((prev) => ({ ...prev, description: event.target.value }))}
-                        className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        placeholder="Notes"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-sm text-gray-300">Due Date</label>
-                        <input
-                          type="date"
-                          value={formData.dueDate}
-                          onChange={(event) => setFormData((prev) => ({ ...prev, dueDate: event.target.value }))}
-                          className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          required
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-sm text-gray-300">Priority</label>
-                        <select
-                          value={formData.priority}
-                          onChange={(event) => setFormData((prev) => ({ ...prev, priority: event.target.value }))}
-                          className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        >
-                          <option value="low">Low</option>
-                          <option value="medium">Medium</option>
-                          <option value="high">High</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="pt-2 flex justify-end gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setIsAddOpen(false)}
-                        className="px-4 py-2 rounded-xl border border-white/10 text-gray-300 hover:bg-white/10"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold"
-                      >
-                        Save Task
-                      </button>
-                    </div>
-                  </motion.form>
-                </motion.div>
-              )}
-            </AnimatePresence>
           </motion.div>
         </div>
       </div>
+
+      <motion.button
+        whileTap={{ scale: 0.96 }}
+        onClick={() => setIsAddOpen(true)}
+        className="md:hidden fixed z-40 right-4 bottom-[80px] h-14 w-14 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-[0_10px_30px_rgba(99,102,241,0.35)] flex items-center justify-center"
+        aria-label="Add task"
+      >
+        <Plus size={24} />
+      </motion.button>
+
+      <AnimatePresence>
+        {isAddOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[90] bg-black/70 backdrop-blur-sm"
+              onClick={() => setIsAddOpen(false)}
+            />
+
+            <motion.form
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 26, stiffness: 280 }}
+              onSubmit={handleAddTodo}
+              className="fixed z-[100] md:absolute md:inset-0 inset-x-0 bottom-0 md:bottom-auto md:rounded-2xl rounded-t-3xl border border-white/10 bg-gray-900/95 md:bg-black/80 p-4 md:p-5 space-y-4 md:space-y-4 md:flex md:items-center md:justify-center md:backdrop-blur-sm pb-[calc(env(safe-area-inset-bottom)+16px)]"
+            >
+              <div className="md:hidden mx-auto h-1.5 w-12 rounded-full bg-white/20" />
+              <div className="md:w-full md:max-w-lg md:rounded-2xl md:border md:border-white/10 md:bg-gray-900/90 md:p-5 space-y-4 w-full">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base md:text-lg font-heading font-bold text-white">Add New Task</h3>
+                  <motion.button
+                    whileTap={{ scale: 0.96 }}
+                    type="button"
+                    onClick={() => setIsAddOpen(false)}
+                    className="min-h-[44px] min-w-[44px] p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10"
+                  >
+                    <X size={16} />
+                  </motion.button>
+                </div>
+
+                <div>
+                  <label className="text-xs md:text-sm text-gray-300">Title</label>
+                  <input
+                    value={formData.title}
+                    onChange={(event) => setFormData((prev) => ({ ...prev, title: event.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Task title"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs md:text-sm text-gray-300">Description (optional)</label>
+                  <textarea
+                    rows={3}
+                    value={formData.description}
+                    onChange={(event) => setFormData((prev) => ({ ...prev, description: event.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Notes"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs md:text-sm text-gray-300">Due Date</label>
+                    <input
+                      type="date"
+                      value={formData.dueDate}
+                      onChange={(event) => setFormData((prev) => ({ ...prev, dueDate: event.target.value }))}
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs md:text-sm text-gray-300">Priority</label>
+                    <select
+                      value={formData.priority}
+                      onChange={(event) => setFormData((prev) => ({ ...prev, priority: event.target.value }))}
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-end gap-3">
+                  <motion.button
+                    whileTap={{ scale: 0.96 }}
+                    type="button"
+                    onClick={() => setIsAddOpen(false)}
+                    className="px-4 py-2 rounded-xl border border-white/10 text-gray-300 hover:bg-white/10 text-sm"
+                  >
+                    Cancel
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.96 }}
+                    type="submit"
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold text-sm"
+                  >
+                    Save Task
+                  </motion.button>
+                </div>
+              </div>
+            </motion.form>
+          </>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {!!deleteCandidate && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[110] bg-black/70 backdrop-blur-sm"
+              onClick={() => setDeleteCandidate(null)}
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 26, stiffness: 280 }}
+              className="fixed inset-x-0 bottom-0 z-[120] rounded-t-3xl border border-white/10 bg-gray-900/95 p-4 pb-[calc(env(safe-area-inset-bottom)+16px)]"
+            >
+              <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-white/20" />
+              <p className="text-sm font-semibold text-white">Delete this item?</p>
+              <p className="mt-1 text-xs text-white/50">This action cannot be undone.</p>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <motion.button
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => setDeleteCandidate(null)}
+                  className="min-h-[44px] rounded-xl border border-white/10 bg-white/5 text-white/80 text-sm"
+                >
+                  Cancel
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.96 }}
+                  onClick={async () => {
+                    const id = deleteCandidate.id;
+                    setDeleteCandidate(null);
+                    await handleDeleteTodo(id);
+                  }}
+                  className="min-h-[44px] rounded-xl bg-red-600/90 text-white text-sm font-semibold"
+                >
+                  Delete
+                </motion.button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </DashboardLayout>
   );
 }

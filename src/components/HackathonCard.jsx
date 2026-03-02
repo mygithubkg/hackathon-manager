@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Edit2, Trash2, ExternalLink,
   Github, FileText, Palette, FolderOpen, Link as LinkIcon,
-  Clock, CheckSquare, Plus, Check, X, Sparkles, LayoutGrid, ListTodo, Bookmark
+  Clock, CheckSquare, Plus, Check, X, Sparkles, LayoutGrid, ListTodo, Bookmark, ChevronRight
 } from 'lucide-react';
 import { sanitizeText, validateLength, isInputSafe, sanitizeURL } from '../utils/security';
 import { useAuth } from '../contexts/AuthContext';
@@ -25,6 +25,8 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
   const [isUrgent, setIsUrgent] = useState(false);
   const [isOverdue, setIsOverdue] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [isMobileExpanded, setIsMobileExpanded] = useState(false);
+  const [mobileOffset, setMobileOffset] = useState(0);
 
   const saveToFirebase = updateHackathon || onUpdate;
 
@@ -302,6 +304,25 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
     }
   };
 
+  const mobileStatusStrip = {
+    Upcoming: 'bg-gray-500',
+    Ongoing: 'bg-amber-500',
+    Planning: 'bg-gray-500',
+    Completed: 'bg-emerald-500'
+  };
+
+  const getRelativeDeadline = () => {
+    if (!hackathon.deadline) return 'No deadline';
+    const target = new Date(hackathon.deadline).getTime();
+    if (Number.isNaN(target)) return 'No deadline';
+    const now = Date.now();
+    const diff = target - now;
+    if (diff <= 0) return 'Overdue';
+    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+    if (days <= 1) return '1 day left';
+    return `${days} days left`;
+  };
+
   // Tab configuration
   const tabs = [
     { id: 'overview', label: 'Overview', icon: LayoutGrid, count: null },
@@ -318,6 +339,159 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
   };
 
   return (
+    <>
+      <div className="md:hidden relative">
+        <div className="absolute inset-y-0 right-0 w-[96px] flex items-stretch gap-1">
+          <motion.button
+            whileTap={{ scale: 0.96 }}
+            onClick={() => onEdit(hackathon)}
+            className="flex-1 min-h-[44px] rounded-r-none rounded-l-xl bg-indigo-600/80 text-white flex items-center justify-center"
+          >
+            <Edit2 size={16} />
+          </motion.button>
+          <motion.button
+            whileTap={{ scale: 0.96 }}
+            onClick={() => onDelete(hackathon.id)}
+            className="flex-1 min-h-[44px] rounded-r-2xl rounded-l-none bg-red-600/80 text-white flex items-center justify-center"
+          >
+            <Trash2 size={16} />
+          </motion.button>
+        </div>
+
+        <motion.div
+          drag="x"
+          dragElastic={0.08}
+          dragConstraints={{ left: -96, right: 0 }}
+          onDragEnd={(_, info) => {
+            if (info.offset.x < -40) {
+              setMobileOffset(-96);
+            } else {
+              setMobileOffset(0);
+            }
+          }}
+          animate={{ x: mobileOffset }}
+          className="relative rounded-2xl border border-white/10 bg-gradient-to-br from-[#11131a] to-[#0c0f14] shadow-[0_12px_30px_rgba(0,0,0,0.35)] overflow-hidden"
+        >
+          <button
+            onClick={() => setIsMobileExpanded((previous) => !previous)}
+            className="w-full text-left min-h-[44px]"
+          >
+            <div className="flex items-stretch">
+              <div className={`w-1 ${mobileStatusStrip[hackathon.status] || 'bg-gray-500'}`} />
+              <div className="flex-1 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-white truncate">{sanitizeText(hackathon.title)}</p>
+                  <ChevronRight size={16} className={`text-white/45 transition-transform ${isMobileExpanded ? 'rotate-90' : ''}`} />
+                </div>
+                <div className="mt-1 flex items-center gap-2 text-[11px]">
+                  <span className="px-2 py-0.5 rounded-full border border-white/15 bg-white/5 text-white/70">{hackathon.status}</span>
+                  <span className={`${isOverdue || isUrgent ? 'text-red-300' : 'text-white/50'}`}>{getRelativeDeadline()}</span>
+                </div>
+                <div className="mt-2 h-1 rounded-full bg-white/10 overflow-hidden">
+                  <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500" style={{ width: `${progressPercent}%` }} />
+                </div>
+              </div>
+            </div>
+          </button>
+
+          <AnimatePresence>
+            {isMobileExpanded && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="border-t border-white/10"
+              >
+                <div className="px-3 py-2 overflow-x-auto no-scrollbar">
+                  <div className="flex gap-2 min-w-max">
+                    {tabs.map((tab) => {
+                      const Icon = tab.icon;
+                      const active = activeTab === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setActiveTab(tab.id);
+                          }}
+                          className={`min-h-[32px] px-3 rounded-full text-xs font-medium border flex items-center gap-1.5 ${active
+                            ? 'border-indigo-400/40 bg-indigo-500/15 text-indigo-200'
+                            : 'border-white/10 bg-white/5 text-white/60'
+                            }`}
+                        >
+                          <Icon size={12} />
+                          {tab.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="px-3 pb-3 text-xs text-white/70">
+                  {activeTab === 'overview' && (
+                    <p className="leading-relaxed">{sanitizeText(hackathon.description) || 'No description provided.'}</p>
+                  )}
+
+                  {activeTab === 'tasks' && (
+                    <div className="space-y-2">
+                      {(hackathon.tasks || []).slice(0, 4).map((task) => (
+                        <div key={task.id} className="rounded-xl bg-white/5 border border-white/10 px-2.5 py-2 flex items-center gap-2">
+                          <button
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              toggleTaskItem(task.id);
+                            }}
+                            className={`h-4 w-4 rounded border ${task.done ? 'bg-emerald-500 border-emerald-400' : 'border-white/30'}`}
+                          />
+                          <span className={`${task.done ? 'line-through text-white/40' : 'text-white/75'}`}>{sanitizeText(task.text)}</span>
+                        </div>
+                      ))}
+                      {(!hackathon.tasks || hackathon.tasks.length === 0) && <p className="text-white/40">No tasks yet.</p>}
+                    </div>
+                  )}
+
+                  {activeTab === 'resources' && (
+                    <div className="space-y-2">
+                      {(hackathon.resources || []).slice(0, 4).map((resource, index) => (
+                        <a
+                          key={resource.id || index}
+                          href={resource.link || resource.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded-xl bg-white/5 border border-white/10 px-2.5 py-2 flex items-center justify-between gap-2"
+                        >
+                          <span className="truncate">{sanitizeText(resource.title || resource.label)}</span>
+                          <ExternalLink size={12} className="text-white/40" />
+                        </a>
+                      ))}
+                      {(!hackathon.resources || hackathon.resources.length === 0) && <p className="text-white/40">No resources yet.</p>}
+                    </div>
+                  )}
+
+                  {activeTab === 'checklist' && (
+                    <div className="space-y-2">
+                      {(hackathon.checklist || []).slice(0, 4).map((task) => (
+                        <div key={task.id} className="rounded-xl bg-white/5 border border-white/10 px-2.5 py-2 flex items-center gap-2">
+                          <button
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              toggleTask(task.id);
+                            }}
+                            className={`h-4 w-4 rounded border ${task.completed ? 'bg-pink-500 border-pink-400' : 'border-white/30'}`}
+                          />
+                          <span className={`${task.completed ? 'line-through text-white/40' : 'text-white/75'}`}>{sanitizeText(task.text)}</span>
+                        </div>
+                      ))}
+                      {(!hackathon.checklist || hackathon.checklist.length === 0) && <p className="text-white/40">No quick tasks yet.</p>}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+      </div>
+
     <motion.div
       layout
       initial={{ opacity: 0, y: 20 }}
@@ -325,7 +499,7 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
       transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
       onHoverStart={() => setIsHovered(true)}
       onHoverEnd={() => setIsHovered(false)}
-      className="group relative h-full"
+      className="hidden md:block group relative h-full"
     >
       {/* Glowing border effect */}
       <div className={`absolute inset-0 rounded-2xl bg-gradient-to-br from-primary-500/20 via-purple-500/20 to-pink-500/20 blur-xl transition-opacity duration-500 ${isHovered ? 'opacity-100' : 'opacity-0'
@@ -837,6 +1011,7 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
         }
       `}</style>
     </motion.div>
+    </>
   );
 };
 

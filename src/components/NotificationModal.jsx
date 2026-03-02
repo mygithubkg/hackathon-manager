@@ -91,7 +91,7 @@ const NotificationModal = ({
     return (
         <AnimatePresence>
             {isOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center p-0 md:p-4">
                     {/* Backdrop */}
                     <motion.div
                         className="absolute inset-0 bg-black/60 backdrop-blur-md"
@@ -104,12 +104,13 @@ const NotificationModal = ({
                     {/* Modal Container */}
                     <motion.div
                         ref={modalRef}
-                        className="relative w-full max-w-2xl bg-gray-900/90 border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+                        className="relative w-full max-w-2xl bg-gray-900/90 border border-white/10 rounded-t-3xl md:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] md:max-h-[85vh] pb-[calc(env(safe-area-inset-bottom)+8px)]"
                         variants={modalVariants}
                         initial="hidden"
                         animate="visible"
                         exit="exit"
                     >
+                        <div className="md:hidden mx-auto mt-3 h-1.5 w-12 rounded-full bg-white/20" />
                         {/* Header */}
                         <div className="flex items-center justify-between p-6 border-b border-white/5 bg-white/5">
                             <div className="flex items-center gap-4">
@@ -210,6 +211,12 @@ const NotificationModal = ({
                                             key={n.id}
                                             variants={itemVariants}
                                             layout
+                                            drag="x"
+                                            dragConstraints={{ left: -90, right: 90 }}
+                                            onDragEnd={(_, info) => {
+                                                if (info.offset.x > 70 && !n.read) onMarkRead();
+                                                if (info.offset.x < -70) onDelete(n.id);
+                                            }}
                                             className={`group relative p-4 rounded-xl border transition-all duration-200 ${!n.read
                                                     ? 'bg-white/5 border-white/10 hover:border-indigo-500/30'
                                                     : 'bg-transparent border-transparent hover:bg-white/5'

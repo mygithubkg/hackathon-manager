@@ -104,13 +104,13 @@ const Dashboard = ({ hackathons = [], onEdit, onDelete, onUpdate, isTeamView }) 
     <div className="container mx-auto px-4 pb-20 max-w-7xl">
 
       {/* --- HEADER & CONTROLS --- */}
-      <div className="flex flex-col md:flex-row justify-between items-end mb-10 gap-6 items-center">
+      <div className="flex flex-col md:flex-row justify-between mb-5 md:mb-10 gap-3 md:gap-6 items-start md:items-center">
         <div>
-          <h2 className="text-3xl font-heading font-bold text-white mb-2 flex items-center gap-3">
+          <h2 className="text-xl md:text-3xl font-heading font-bold text-white mb-1 md:mb-2 flex items-center gap-2 md:gap-3 tracking-tight">
             {isTeamView ? <Users className="text-indigo-400" /> : <LayoutGrid className="text-indigo-400" />}
             {isTeamView ? 'Team Projects' : 'My Projects'}
           </h2>
-          <p className="text-gray-400 font-body text-sm">
+          <p className="text-gray-400 font-body text-xs md:text-sm">
             Overview of all active and archived protocols.
           </p>
         </div>
@@ -142,7 +142,7 @@ const Dashboard = ({ hackathons = [], onEdit, onDelete, onUpdate, isTeamView }) 
       </div>
 
       {/* --- HUD STATS BAR --- */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
+      <div className="hidden md:grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
         <StatCard
           label="Total Protocols"
           value={filteredHackathons.length}
@@ -190,6 +190,20 @@ const Dashboard = ({ hackathons = [], onEdit, onDelete, onUpdate, isTeamView }) 
         </motion.div>
       ) : (
         <div className="space-y-12">
+          <div className="md:hidden space-y-2">
+            {filteredHackathons.map((hackathon) => (
+              <motion.div key={hackathon.id} variants={itemVariants} initial="hidden" animate="visible" layout>
+                <HackathonCard
+                  hackathon={hackathon}
+                  onEdit={onEdit}
+                  onUpdate={onUpdate}
+                  onDelete={handleSecureDelete}
+                />
+              </motion.div>
+            ))}
+          </div>
+
+          <div className="hidden md:block">
           {(() => {
             // SYSTEMATIC GROUPING: 48 hours critical, Active, Everything Else
             const now = new Date().getTime();
@@ -307,6 +321,7 @@ const Dashboard = ({ hackathons = [], onEdit, onDelete, onUpdate, isTeamView }) 
               </>
             );
           })()}
+          </div>
         </div>
       )}
     </div>

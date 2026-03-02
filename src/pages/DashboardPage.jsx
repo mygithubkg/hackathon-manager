@@ -151,6 +151,11 @@ function DashboardPage() {
                 />
             )}
         >
+            <div className="md:hidden mb-3">
+                <div className="h-[2px] w-24 mx-auto rounded-full bg-gradient-to-r from-transparent via-indigo-400/70 to-transparent" />
+                <p className="mt-1 text-center text-[10px] uppercase tracking-[0.16em] text-white/35">↓ Pull to refresh</p>
+            </div>
+
             {/* Team Manager Dropdown - Removed or minimal since we navigate away */}
             {/* Keeping AnimatePresence for modal or other transitions */}
 
@@ -167,9 +172,18 @@ function DashboardPage() {
 
             {/* Loading State or Dashboard */}
             {loading ? (
-                <div className="flex flex-col items-center justify-center min-h-[400px]">
-                    <Loader2 className="w-12 h-12 text-primary-500 animate-spin mb-4" />
-                    <p className="text-gray-400">Loading hackathons...</p>
+                <div className="space-y-2 md:space-y-0 md:flex md:flex-col md:items-center md:justify-center min-h-[400px]">
+                    <div className="md:hidden space-y-2">
+                        {[1, 2, 3].map((entry) => (
+                            <div key={entry} className="h-[86px] rounded-2xl border border-white/10 bg-white/5 overflow-hidden relative">
+                                <div className="absolute inset-0 shimmer" />
+                            </div>
+                        ))}
+                    </div>
+                    <div className="hidden md:flex flex-col items-center justify-center">
+                        <Loader2 className="w-12 h-12 text-primary-500 animate-spin mb-4" />
+                        <p className="text-gray-400">Loading hackathons...</p>
+                    </div>
                 </div>
             ) : (
                 <Dashboard
@@ -180,6 +194,17 @@ function DashboardPage() {
                     isTeamView={!!currentTeam}
                 />
             )}
+
+            <motion.button
+                whileTap={{ scale: 0.96 }}
+                animate={hackathons?.length === 0 ? { boxShadow: ['0 0 0 0 rgba(99,102,241,0.35)', '0 0 0 10px rgba(99,102,241,0)', '0 0 0 0 rgba(99,102,241,0)'] } : {}}
+                transition={hackathons?.length === 0 ? { duration: 1.8, repeat: Infinity, ease: 'easeOut' } : {}}
+                onClick={() => setIsModalOpen(true)}
+                className="md:hidden fixed z-40 right-4 bottom-[80px] h-14 w-14 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-[0_10px_30px_rgba(99,102,241,0.35)] flex items-center justify-center"
+                aria-label="Add project"
+            >
+                <Plus size={24} />
+            </motion.button>
 
             {/* Add/Edit Modal */}
             <AnimatePresence>
