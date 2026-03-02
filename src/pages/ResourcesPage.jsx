@@ -33,6 +33,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTeam } from '../contexts/TeamContext';
 import { db } from '../firebase';
 import { sanitizeText, sanitizeURL, sanitizeObject, updateHackathonLimiter } from '../utils/security';
+import { logActivity } from '../utils/logActivity';
 
 const parseAddedAt = (value) => {
   if (!value) return null;
@@ -319,6 +320,17 @@ function ResourcesPage() {
       await updateDoc(doc(db, 'hackathons', formData.projectId), {
         resources: arrayUnion(sanitizedResource),
         updatedAt: serverTimestamp()
+      });
+
+      await logActivity({
+        currentUser,
+        currentTeam,
+        type: 'resource_added',
+        projectId: selectedHackathon.id,
+        projectTitle: selectedHackathon.title,
+        entityId: `${selectedHackathon.id}-${Date.now()}`,
+        entityTitle: sanitizedLabel,
+        meta: { resourceType: formData.type, url: sanitizedUrl }
       });
 
       setSuccessToast(`Resource added to ${selectedHackathon.title} ✓`);

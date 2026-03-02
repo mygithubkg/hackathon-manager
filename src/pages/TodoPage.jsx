@@ -19,6 +19,7 @@ import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
 import { useTeam } from '../contexts/TeamContext';
 import { db } from '../firebase';
+import { logActivity } from '../utils/logActivity';
 import {
   sanitizeObject,
   sanitizeText,
@@ -202,10 +203,19 @@ function TodoPage() {
     );
 
     try {
-      await addDoc(collection(db, 'todos'), {
+      const todoRef = await addDoc(collection(db, 'todos'), {
         ...sanitizedPayload,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
+      });
+
+      await logActivity({
+        currentUser,
+        currentTeam,
+        type: 'todo_created',
+        entityId: todoRef.id,
+        entityTitle: safeTitle,
+        meta: { dueDate: formData.dueDate, priority: formData.priority }
       });
 
       setFormData((prev) => ({
@@ -233,20 +243,40 @@ function TodoPage() {
         completed: !todo.completed,
         updatedAt: serverTimestamp()
       });
+
+      if (!todo.completed) {
+        await logActivity({
+          currentUser,
+          currentTeam,
+          type: 'todo_completed',
+          entityId: todo.id,
+          entityTitle: todo.title,
+          meta: { dueDate: todo.dueDate, priority: todo.priority }
+        });
+      }
     } catch (updateError) {
       console.error('Error updating todo:', updateError);
       alert('Failed to update task status.');
     }
   };
 
-  const handleDeleteTodo = async (todoId) => {
+  const handleDeleteTodo = async (todo) => {
     if (!deleteHackathonLimiter.canProceed('todo-delete')) {
       alert('Security: Too many delete requests. Please wait a moment.');
       return;
     }
 
     try {
-      await deleteDoc(doc(db, 'todos', todoId));
+      await deleteDoc(doc(db, 'todos', todo.id));
+
+      await logActivity({
+        currentUser,
+        currentTeam,
+        type: 'todo_deleted',
+        entityId: todo.id,
+        entityTitle: todo.title,
+        meta: { dueDate: todo.dueDate, priority: todo.priority }
+      });
     } catch (deleteError) {
       console.error('Error deleting todo:', deleteError);
       alert('Failed to delete task.');
@@ -590,9 +620,9 @@ function TodoPage() {
                 <motion.button
                   whileTap={{ scale: 0.96 }}
                   onClick={async () => {
-                    const id = deleteCandidate.id;
+                    const targetTodo = deleteCandidate;
                     setDeleteCandidate(null);
-                    await handleDeleteTodo(id);
+                    await handleDeleteTodo(targetTodo);
                   }}
                   className="min-h-[44px] rounded-xl bg-red-600/90 text-white text-sm font-semibold"
                 >

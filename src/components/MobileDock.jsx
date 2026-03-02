@@ -5,6 +5,7 @@ import {
     CheckSquare,
     Clipboard,
     Grid2x2,
+    BarChart3,
     Users,
     BookOpen,
     Bell,
@@ -70,7 +71,7 @@ const MobileDock = ({ onTeamClick, renderNotifications }) => {
     const isHome = location.pathname === '/';
     const isTodo = location.pathname === '/todo';
     const isSnippets = location.pathname === '/snippets';
-    const isMore = ['/teams', '/resources'].includes(location.pathname);
+    const isMore = ['/teams', '/resources', '/analytics'].includes(location.pathname);
 
     return (
         <>
@@ -122,6 +123,15 @@ const MobileDock = ({ onTeamClick, renderNotifications }) => {
                                     onClick={() => {
                                         setMoreOpen(false);
                                         navigate('/resources');
+                                    }}
+                                />
+                                <MoreRow
+                                    icon={BarChart3}
+                                    label="Analytics"
+                                    description="View progress, workload, and activity trends"
+                                    onClick={() => {
+                                        setMoreOpen(false);
+                                        navigate('/analytics');
                                     }}
                                 />
 

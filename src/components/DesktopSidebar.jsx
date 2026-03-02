@@ -4,6 +4,7 @@ import {
     LayoutGrid,
     Users,
     CheckSquare,
+    BarChart3,
     BookOpen,
     Clipboard,
     Plus,
@@ -129,6 +130,13 @@ const DesktopSidebar = ({
                     label="Snippets"
                     active={location.pathname === '/snippets'}
                     onClick={() => navigate('/snippets')}
+                    collapsed={isSidebarCollapsed}
+                />
+                <NavItem
+                    icon={BarChart3}
+                    label="Analytics"
+                    active={location.pathname === '/analytics'}
+                    onClick={() => navigate('/analytics')}
                     collapsed={isSidebarCollapsed}
                 />
 

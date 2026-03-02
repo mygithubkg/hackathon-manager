@@ -5,9 +5,14 @@ import {
   Github, FileText, Palette, FolderOpen, Link as LinkIcon,
   Clock, CheckSquare, Plus, Check, X, Sparkles, LayoutGrid, ListTodo, Bookmark, ChevronRight
 } from 'lucide-react';
+import { collection, onSnapshot, orderBy, query, where, limit } from 'firebase/firestore';
 import { sanitizeText, validateLength, isInputSafe, sanitizeURL } from '../utils/security';
 import { useAuth } from '../contexts/AuthContext';
+import { useTeam } from '../contexts/TeamContext';
+import { db } from '../firebase';
 import { notifyUsers, getProjectRecipients } from '../utils/notifications';
+import { logActivity } from '../utils/logActivity';
+import ActivityFeed from './ActivityFeed';
 
 /**
  * 🎨 GLASSMORPHIC PREMIUM WITH TABBED NAVIGATION
@@ -16,6 +21,7 @@ import { notifyUsers, getProjectRecipients } from '../utils/notifications';
  */
 const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon }) => {
   const { currentUser } = useAuth();
+  const { currentTeam } = useTeam();
   const [activeTab, setActiveTab] = useState('overview'); // overview, tasks, resources, checklist
   const [newTask, setNewTask] = useState('');
   const [newTaskItem, setNewTaskItem] = useState('');
@@ -27,6 +33,7 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
   const [isHovered, setIsHovered] = useState(false);
   const [isMobileExpanded, setIsMobileExpanded] = useState(false);
   const [mobileOffset, setMobileOffset] = useState(0);
+  const [activityLogs, setActivityLogs] = useState([]);
 
   const saveToFirebase = updateHackathon || onUpdate;
 
@@ -72,7 +79,28 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
     return () => clearInterval(interval);
   }, [hackathon.deadline]);
 
-  const handleAddTask = (e) => {
+  useEffect(() => {
+    if (activeTab !== 'activity' || !currentUser?.uid || !hackathon?.id) {
+      setActivityLogs([]);
+      return;
+    }
+
+    const logsQuery = query(
+      collection(db, 'activityLogs'),
+      where('projectId', '==', hackathon.id),
+      orderBy('createdAt', 'desc'),
+      limit(20)
+    );
+
+    const unsubscribe = onSnapshot(logsQuery, (snapshot) => {
+      const logs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      setActivityLogs(logs);
+    });
+
+    return () => unsubscribe();
+  }, [activeTab, currentUser?.uid, hackathon?.id]);
+
+  const handleAddTask = async (e) => {
     e.preventDefault();
     if (!newTask.trim() || !onUpdate) return;
 
@@ -90,8 +118,22 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
 
     const updatedChecklist = [...currentChecklist, { id: Date.now(), text: sanitizedTask, completed: false }];
 
-    // SAVE TO DB
-    onUpdate(hackathon.id, { checklist: updatedChecklist });
+    try {
+      await onUpdate(hackathon.id, { checklist: updatedChecklist });
+      await logActivity({
+        currentUser,
+        currentTeam,
+        type: 'task_added',
+        projectId: hackathon.id,
+        projectTitle: hackathon.title,
+        entityId: String(updatedChecklist[updatedChecklist.length - 1].id),
+        entityTitle: sanitizedTask,
+        meta: { source: 'checklist' }
+      });
+    } catch (error) {
+      console.error('❌ Failed to add quick task:', error);
+      return;
+    }
 
     // NOTIFICATION: Quick Task Added
     (async () => {
@@ -114,13 +156,30 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
     setNewTask('');
   };
 
-  const toggleTask = (taskId) => {
+  const toggleTask = async (taskId) => {
     if (!onUpdate) return;
     const currentChecklist = hackathon.checklist || [];
+    const targetTask = currentChecklist.find(task => task.id === taskId);
+    if (!targetTask) return;
     const updatedChecklist = currentChecklist.map(task =>
       task.id === taskId ? { ...task, completed: !task.completed } : task
     );
-    onUpdate(hackathon.id, { checklist: updatedChecklist });
+
+    try {
+      await onUpdate(hackathon.id, { checklist: updatedChecklist });
+      await logActivity({
+        currentUser,
+        currentTeam,
+        type: targetTask.completed ? 'checklist_item_unchecked' : 'checklist_item_checked',
+        projectId: hackathon.id,
+        projectTitle: hackathon.title,
+        entityId: String(targetTask.id),
+        entityTitle: targetTask.text,
+        meta: { source: 'checklist' }
+      });
+    } catch (error) {
+      console.error('❌ Failed to toggle quick task:', error);
+    }
   };
 
   const removeTask = (taskId) => {
@@ -157,6 +216,16 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
 
     try {
       await saveToFirebase(hackathon.id, { tasks: updatedTasks });
+      await logActivity({
+        currentUser,
+        currentTeam,
+        type: 'task_added',
+        projectId: hackathon.id,
+        projectTitle: hackathon.title,
+        entityId: String(newTaskObj.id),
+        entityTitle: sanitizedTask,
+        meta: { source: 'tasks' }
+      });
       setNewTaskItem('');
       setNewTaskDeadline('');
 
@@ -183,12 +252,24 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
   const toggleTaskItem = async (taskId) => {
     if (!saveToFirebase) return;
     const currentTasks = hackathon.tasks || [];
+    const targetTask = currentTasks.find(task => task.id === taskId);
+    if (!targetTask) return;
     const updatedTasks = currentTasks.map(task =>
       task.id === taskId ? { ...task, done: !task.done } : task
     );
 
     try {
       await saveToFirebase(hackathon.id, { tasks: updatedTasks });
+      await logActivity({
+        currentUser,
+        currentTeam,
+        type: targetTask.done ? 'task_uncompleted' : 'task_completed',
+        projectId: hackathon.id,
+        projectTitle: hackathon.title,
+        entityId: String(targetTask.id),
+        entityTitle: targetTask.text,
+        meta: { source: 'tasks' }
+      });
     } catch (error) {
       console.error('❌ Failed to toggle task:', error);
     }
@@ -197,10 +278,22 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
   const removeTaskItem = async (taskId) => {
     if (!saveToFirebase) return;
     const currentTasks = hackathon.tasks || [];
+    const targetTask = currentTasks.find(task => task.id === taskId);
+    if (!targetTask) return;
     const updatedTasks = currentTasks.filter(task => task.id !== taskId);
 
     try {
       await saveToFirebase(hackathon.id, { tasks: updatedTasks });
+      await logActivity({
+        currentUser,
+        currentTeam,
+        type: 'task_deleted',
+        projectId: hackathon.id,
+        projectTitle: hackathon.title,
+        entityId: String(targetTask.id),
+        entityTitle: targetTask.text,
+        meta: { source: 'tasks' }
+      });
     } catch (error) {
       console.error('❌ Failed to delete task:', error);
     }
@@ -248,6 +341,16 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
 
     try {
       await saveToFirebase(hackathon.id, { resources: updatedResources });
+      await logActivity({
+        currentUser,
+        currentTeam,
+        type: 'resource_added',
+        projectId: hackathon.id,
+        projectTitle: hackathon.title,
+        entityId: resourceObj.id,
+        entityTitle: sanitizedLabel,
+        meta: { resourceType: newResource.type, url: sanitizedUrl }
+      });
 
       setNewResource({ label: '', url: '', type: 'Other' });
 
@@ -276,10 +379,22 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
   const removeResource = async (resourceId) => {
     if (!saveToFirebase) return;
     const currentResources = hackathon.resources || [];
+    const targetResource = currentResources.find(resource => resource.id === resourceId);
+    if (!targetResource) return;
     const updatedResources = currentResources.filter(resource => resource.id !== resourceId);
 
     try {
       await saveToFirebase(hackathon.id, { resources: updatedResources });
+      await logActivity({
+        currentUser,
+        currentTeam,
+        type: 'resource_deleted',
+        projectId: hackathon.id,
+        projectTitle: hackathon.title,
+        entityId: String(targetResource.id),
+        entityTitle: targetResource.title || targetResource.label,
+        meta: { resourceType: targetResource.type || 'Other' }
+      });
     } catch (error) {
       console.error('❌ Failed to delete resource:', error);
     }
@@ -328,7 +443,8 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
     { id: 'overview', label: 'Overview', icon: LayoutGrid, count: null },
     { id: 'tasks', label: 'Tasks', icon: CheckSquare, count: hackathon.tasks?.length || 0 },
     { id: 'resources', label: 'Resources', icon: Bookmark, count: hackathon.resources?.length || 0 },
-    { id: 'checklist', label: 'Quick Tasks', icon: ListTodo, count: hackathon.checklist?.length || 0 }
+    { id: 'checklist', label: 'Quick Tasks', icon: ListTodo, count: hackathon.checklist?.length || 0 },
+    { id: 'activity', label: 'Activity', icon: Clock, count: null }
   ];
 
   // Tab content variants for smooth transitions
@@ -484,6 +600,13 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
                       ))}
                       {(!hackathon.checklist || hackathon.checklist.length === 0) && <p className="text-white/40">No quick tasks yet.</p>}
                     </div>
+                  )}
+
+                  {activeTab === 'activity' && (
+                    <ActivityFeed
+                      logs={activityLogs}
+                      emptyMessage="No activity yet for this project."
+                    />
                   )}
                 </div>
               </motion.div>
@@ -987,6 +1110,22 @@ const HackathonCard = ({ hackathon, onEdit, onDelete, onUpdate, updateHackathon 
                     <Plus size={20} />
                   </motion.button>
                 </form>
+              </motion.div>
+            )}
+
+            {activeTab === 'activity' && (
+              <motion.div
+                key="activity"
+                variants={tabContentVariants}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                className="p-6"
+              >
+                <ActivityFeed
+                  logs={activityLogs}
+                  emptyMessage="No activity yet for this project."
+                />
               </motion.div>
             )}
           </AnimatePresence>

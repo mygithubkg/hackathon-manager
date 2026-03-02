@@ -12,6 +12,7 @@ import useNotifications from '../hooks/useNotifications';
 import { useAuth } from '../contexts/AuthContext';
 import { useTeam } from '../contexts/TeamContext';
 import { sanitizeObject, addHackathonLimiter, updateHackathonLimiter } from '../utils/security';
+import { logActivity } from '../utils/logActivity';
 
 /**
  * Main Dashboard Page
@@ -79,7 +80,17 @@ function DashboardPage() {
                 type: currentTeam ? 'team' : 'solo'
             };
 
-            await addHackathon(hackathonData);
+            const createdId = await addHackathon(hackathonData);
+            await logActivity({
+                currentUser,
+                currentTeam,
+                type: 'project_created',
+                projectId: createdId,
+                projectTitle: hackathonData.title,
+                entityId: createdId,
+                entityTitle: hackathonData.title,
+                meta: { status: hackathonData.status }
+            });
             setIsModalOpen(false);
         } catch (error) {
             console.error('Error adding hackathon:', error);
@@ -104,7 +115,39 @@ function DashboardPage() {
 
             const sanitizedUpdates = sanitizeObject(updatedData, allowedKeys);
 
+            const existingProject = hackathons.find((entry) => entry.id === id);
+
             await updateHackathon(id, sanitizedUpdates);
+
+            const projectLevelKeys = ['title', 'description', 'status', 'startDate', 'endDate', 'deadline', 'notes', 'type'];
+            const hasProjectLevelChange = Object.keys(sanitizedUpdates).some((key) => projectLevelKeys.includes(key));
+
+            if (hasProjectLevelChange) {
+                await logActivity({
+                    currentUser,
+                    currentTeam,
+                    type: 'project_updated',
+                    projectId: id,
+                    projectTitle: sanitizedUpdates.title || existingProject?.title || 'Untitled Project',
+                    entityId: id,
+                    entityTitle: sanitizedUpdates.title || existingProject?.title || 'Untitled Project',
+                    meta: { fields: Object.keys(sanitizedUpdates) }
+                });
+
+                if (sanitizedUpdates.status && existingProject?.status && sanitizedUpdates.status !== existingProject.status) {
+                    await logActivity({
+                        currentUser,
+                        currentTeam,
+                        type: 'project_status_changed',
+                        projectId: id,
+                        projectTitle: sanitizedUpdates.title || existingProject?.title || 'Untitled Project',
+                        entityId: id,
+                        entityTitle: sanitizedUpdates.title || existingProject?.title || 'Untitled Project',
+                        meta: { from: existingProject.status, to: sanitizedUpdates.status }
+                    });
+                }
+            }
+
             setIsModalOpen(false);
             setEditingHackathon(null);
         } catch (error) {
@@ -116,7 +159,18 @@ function DashboardPage() {
     const handleDeleteHackathon = async (id) => {
         if (window.confirm('Are you sure you want to delete this hackathon?')) {
             try {
+                const deletedProject = hackathons.find((entry) => entry.id === id);
                 await deleteHackathonFromDb(id);
+                await logActivity({
+                    currentUser,
+                    currentTeam,
+                    type: 'project_deleted',
+                    projectId: id,
+                    projectTitle: deletedProject?.title || 'Untitled Project',
+                    entityId: id,
+                    entityTitle: deletedProject?.title || 'Untitled Project',
+                    meta: { status: deletedProject?.status || 'Unknown' }
+                });
             } catch (error) {
                 console.error('Error deleting hackathon:', error);
                 alert('Failed to delete hackathon. Please try again.');

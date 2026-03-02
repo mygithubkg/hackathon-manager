@@ -32,6 +32,7 @@ import { useTeam } from '../contexts/TeamContext';
 import { db } from '../firebase';
 import { sanitizeText, RateLimiter } from '../utils/security';
 import { getRelativeTime } from '../utils/relativeTime';
+import { logActivity } from '../utils/logActivity';
 
 const addSnippetLimiter = new RateLimiter(8, 60000);
 const updateSnippetLimiter = new RateLimiter(20, 60000);
@@ -423,9 +424,18 @@ function SnippetsPage() {
           updatedAt: serverTimestamp()
         });
 
+        await logActivity({
+          currentUser,
+          currentTeam,
+          type: 'snippet_edited',
+          entityId: editingSnippet.id,
+          entityTitle: safeTitle || 'Untitled Snippet',
+          meta: { language: formData.language || 'plaintext' }
+        });
+
         setSuccessToast('Snippet updated! ✓');
       } else {
-        await addDoc(collection(db, 'snippets'), {
+        const snippetRef = await addDoc(collection(db, 'snippets'), {
           ownerId: currentUser.uid,
           ownerName: currentUser.displayName || currentUser.email || 'Unknown User',
           ownerPhoto: currentUser.photoURL || null,
@@ -437,6 +447,15 @@ function SnippetsPage() {
           pinned: false,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
+        });
+
+        await logActivity({
+          currentUser,
+          currentTeam,
+          type: 'snippet_created',
+          entityId: snippetRef.id,
+          entityTitle: safeTitle || 'Untitled Snippet',
+          meta: { language: formData.language || 'plaintext' }
         });
 
         setSuccessToast('Snippet saved! ✓');
@@ -487,6 +506,16 @@ function SnippetsPage() {
 
     try {
       await deleteDoc(doc(db, 'snippets', snippet.id));
+
+      await logActivity({
+        currentUser,
+        currentTeam,
+        type: 'snippet_deleted',
+        entityId: snippet.id,
+        entityTitle: snippet.title || 'Untitled Snippet',
+        meta: { language: snippet.language || 'plaintext' }
+      });
+
       setDeleteSheetSnippet(null);
       setSuccessToast('Snippet deleted.');
     } catch (deleteError) {
