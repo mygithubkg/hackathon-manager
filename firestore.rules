@@ -2,247 +2,104 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // =====================================================
-    // Helper Functions
-    // =====================================================
-
-    function isSignedIn() {
-      return request.auth != null;
+    // Helper functions
+    function isAuth() { return request.auth != null; }
+    function isOwner(uid) { return request.auth.uid == uid; }
+    function isTeamMember(teamId) { 
+        return request.auth.uid in get(/databases/$(database)/documents/teams/$(teamId)).data.members; 
     }
-
-    function isOwner(ownerId) {
-      return isSignedIn() && request.auth.uid == ownerId;
-    }
-
-    function teamDoc(teamId) {
-      return get(/databases/$(database)/documents/teams/$(teamId)).data;
-    }
-
-    function teamExists(teamId) {
-      return teamId != null
-        && exists(/databases/$(database)/documents/teams/$(teamId));
-    }
-
-    function isTeamMember(teamId) {
-      return isSignedIn()
-        && teamExists(teamId)
-        && (
-          teamDoc(teamId).ownerId == request.auth.uid
-          || teamDoc(teamId).createdBy == request.auth.uid
-          || (teamDoc(teamId).members is list
-              && request.auth.uid in teamDoc(teamId).members)
-          || (teamDoc(teamId).memberIds is list
-              && request.auth.uid in teamDoc(teamId).memberIds)
-        );
-    }
-
-    function validType(t) {
-      return t == 'solo' || t == 'team';
+    function isTeamAdmin(teamId) { 
+        return request.auth.uid in get(/databases/$(database)/documents/teams/$(teamId)).data.admins; 
     }
 
     // =====================================================
-    // SNIPPET VALIDATION
+    // USER PROFILES
     // =====================================================
-
-    function validSnippetCreate() {
-      return isSignedIn()
-        && request.resource.data.keys().hasOnly([
-          'ownerId','ownerName','ownerPhoto','teamId','type',
-          'title','content','language','pinned','createdAt','updatedAt'
-        ])
-        && request.resource.data.ownerId == request.auth.uid
-        && request.resource.data.ownerName is string
-        && (request.resource.data.ownerPhoto == null
-            || request.resource.data.ownerPhoto is string)
-        && request.resource.data.title is string
-        && request.resource.data.title.size() <= 100
-        && request.resource.data.content is string
-        && request.resource.data.content.size() > 0
-        && request.resource.data.content.size() <= 10000
-        && request.resource.data.language is string
-        && request.resource.data.pinned is bool
-        && request.resource.data.createdAt is timestamp
-        && request.resource.data.updatedAt is timestamp
-        && validType(request.resource.data.type)
-        && (
-          (request.resource.data.type == 'solo'
-            && request.resource.data.teamId == null)
-          ||
-          (request.resource.data.type == 'team'
-            && isTeamMember(request.resource.data.teamId))
-        );
-    }
-
-    function validSnippetUpdate() {
-      return isSignedIn()
-        && request.resource.data.keys().hasOnly([
-          'ownerId','ownerName','ownerPhoto','teamId','type',
-          'title','content','language','pinned','createdAt','updatedAt'
-        ])
-        && request.resource.data.ownerId == resource.data.ownerId
-        && request.resource.data.ownerId == request.auth.uid
-        && request.resource.data.teamId == resource.data.teamId
-        && request.resource.data.type == resource.data.type
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.ownerName == resource.data.ownerName
-        && request.resource.data.ownerPhoto == resource.data.ownerPhoto
-        && request.resource.data.title is string
-        && request.resource.data.title.size() <= 100
-        && request.resource.data.content is string
-        && request.resource.data.content.size() > 0
-        && request.resource.data.content.size() <= 10000
-        && request.resource.data.language is string
-        && request.resource.data.pinned is bool
-        && request.resource.data.updatedAt is timestamp;
-    }
-
-    // =====================================================
-    // USERS
-    // =====================================================
-
-    match /users/{userId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update, delete: if isOwner(userId);
+    match /userProfiles/{uid} {
+      // NOTE: Firestore rules cannot query across collections to find if users share "any" team without a specific teamId.
+      // Allowing authenticated users to read. In a real app we'd add `teamIds` array to the profile to filter.
+      allow read: if isAuth();
+      
+      allow write: if isOwner(uid)
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['publicProfile']) 
+            || (
+                request.resource.data.publicProfile.displayName is string
+                && request.resource.data.publicProfile.displayName.size() <= 40
+                && (request.resource.data.publicProfile.bio == null || (request.resource.data.publicProfile.bio is string && request.resource.data.publicProfile.bio.size() <= 300))
+                && request.resource.data.publicProfile.skills is list
+                && request.resource.data.publicProfile.skills.size() <= 10
+                && request.resource.data.publicProfile.portfolioLinks is list
+                && request.resource.data.publicProfile.portfolioLinks.size() <= 5
+                && (request.resource.data.publicProfile.avatarURL == null || request.resource.data.publicProfile.avatarURL is string)
+            ));
+      allow delete: if false;
     }
 
     // =====================================================
     // TEAMS
     // =====================================================
-
     match /teams/{teamId} {
-      allow create: if isSignedIn();
-      allow read: if isSignedIn();
+      allow create: if isAuth();
+      allow read: if isAuth();
 
-      allow update: if isSignedIn() && (
-        request.auth.uid in resource.data.members ||
-        request.auth.uid in request.resource.data.members ||
-        resource.data.ownerId == request.auth.uid
+      allow update: if isAuth() && (
+        // Rename team
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'updatedAt']) && (request.auth.uid in resource.data.members || request.auth.uid in resource.data.admins)) ||
+        // Join Request (pendingMembers)
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pendingMembers']) && request.resource.data.pendingMembers.hasAll(resource.data.get('pendingMembers', [])) && isAuth()) ||
+        // Approve Member
+        (request.resource.data.diff(resource.data).affectedKeys().hasAny(['members', 'memberProfiles', 'pendingMembers']) && isTeamAdmin(teamId)) ||
+        // Promote to Admin
+        (request.resource.data.diff(resource.data).affectedKeys().hasAny(['admins']) && isTeamAdmin(teamId)) ||
+        // Creator/Owner catchall
+        resource.data.createdBy == request.auth.uid || 
+        resource.data.adminId == request.auth.uid
       );
 
-      allow delete: if isOwner(resource.data.ownerId);
+      allow delete: if isAuth() && request.auth.uid in resource.data.admins;
     }
 
     // =====================================================
     // HACKATHONS
     // =====================================================
-
     match /hackathons/{hackathonId} {
-      allow create: if isSignedIn();
-
-      allow read, update, delete: if isSignedIn() && (
-        resource.data.ownerId == request.auth.uid
-        || isTeamMember(resource.data.teamId)
+      allow create: if isAuth();
+      allow read, update, delete: if isAuth() && (
+        resource.data.ownerId == request.auth.uid || 
+        isTeamMember(resource.data.teamId)
       );
     }
 
     // =====================================================
     // NOTIFICATIONS
     // =====================================================
-
     match /notifications/{notificationId} {
-      allow create: if isSignedIn();
-
-      allow read, update, delete: if isSignedIn()
-        && resource.data.userId == request.auth.uid;
+      allow read: if isAuth() && request.auth.uid == resource.data.userId;
+      allow write: if isAuth();
+      allow delete: if isAuth() && request.auth.uid == resource.data.userId;
     }
 
     // =====================================================
-    // TODOS
+    // OTHER COLLECTIONS (Todos, Snippets, ActivityLogs, Users)
     // =====================================================
+    match /users/{userId} {
+      allow read, create: if isAuth();
+      allow update, delete: if isOwner(userId);
+    }
 
     match /todos/{todoId} {
-
-      allow create: if isSignedIn()
-        && request.resource.data.ownerId == request.auth.uid
-        && request.resource.data.title is string
-        && request.resource.data.dueDate is string
-        && request.resource.data.completed is bool
-        && request.resource.data.priority in ['low','medium','high']
-        && validType(request.resource.data.type)
-        && (
-          (request.resource.data.type == 'solo'
-            && request.resource.data.teamId == null)
-          ||
-          (request.resource.data.type == 'team'
-            && isTeamMember(request.resource.data.teamId))
-        );
-
-      allow read: if isSignedIn() && (
-        resource.data.ownerId == request.auth.uid
-        || isTeamMember(resource.data.teamId)
-      );
-
-      allow update: if isSignedIn() && (
-        resource.data.ownerId == request.auth.uid
-        || isTeamMember(resource.data.teamId)
-      )
-      && request.resource.data.ownerId == resource.data.ownerId
-      && request.resource.data.teamId == resource.data.teamId
-      && request.resource.data.type == resource.data.type;
-
-      allow delete: if isSignedIn() && (
-        resource.data.ownerId == request.auth.uid
-        || isTeamMember(resource.data.teamId)
-      );
+      allow create: if isAuth() && request.resource.data.ownerId == request.auth.uid;
+      allow read, update, delete: if isAuth() && (resource.data.ownerId == request.auth.uid || isTeamMember(resource.data.teamId));
     }
-
-    // =====================================================
-    // SNIPPETS
-    // =====================================================
 
     match /snippets/{snippetId} {
-
-      allow read: if isSignedIn() && (
-        resource.data.ownerId == request.auth.uid
-        || (resource.data.teamId != null
-            && isTeamMember(resource.data.teamId))
-      );
-
-      allow create: if validSnippetCreate();
-
-      allow update: if resource.data.ownerId == request.auth.uid
-                    && validSnippetUpdate();
-
-      allow delete: if isSignedIn()
-                    && resource.data.ownerId == request.auth.uid;
+      allow create: if isAuth() && request.resource.data.ownerId == request.auth.uid;
+      allow read, update, delete: if isAuth() && (resource.data.ownerId == request.auth.uid || (resource.data.teamId != null && isTeamMember(resource.data.teamId)));
     }
 
-    // =====================================================
-    // ACTIVITY LOGS
-    // =====================================================
-
     match /activityLogs/{logId} {
-      allow read: if isSignedIn() && (
-        resource.data.ownerId == request.auth.uid
-        || (resource.data.teamId != null && isTeamMember(resource.data.teamId))
-      );
-
-      allow create: if isSignedIn()
-        && request.resource.data.keys().hasOnly([
-          'ownerId','ownerName','ownerPhoto','teamId','type',
-          'projectId','projectTitle','entityId','entityTitle','meta','createdAt'
-        ])
-        && request.resource.data.ownerId == request.auth.uid
-        && request.resource.data.ownerName is string
-        && (request.resource.data.ownerPhoto == null
-            || request.resource.data.ownerPhoto is string)
-        && request.resource.data.type is string
-        && (request.resource.data.projectId == null
-            || request.resource.data.projectId is string)
-        && (request.resource.data.projectTitle == null
-            || request.resource.data.projectTitle is string)
-        && (request.resource.data.entityId == null
-            || request.resource.data.entityId is string)
-        && (request.resource.data.entityTitle == null
-            || request.resource.data.entityTitle is string)
-        && request.resource.data.meta is map
-        && request.resource.data.createdAt is timestamp
-        && (
-          request.resource.data.teamId == null
-          || isTeamMember(request.resource.data.teamId)
-        );
-
+      allow create: if isAuth() && request.resource.data.ownerId == request.auth.uid;
+      allow read: if isAuth() && (resource.data.ownerId == request.auth.uid || (resource.data.teamId != null && isTeamMember(resource.data.teamId)));
       allow update, delete: if false;
     }
   }

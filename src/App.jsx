@@ -17,6 +17,7 @@ import TodoPage from './pages/TodoPage';
 import ResourcesPage from './pages/ResourcesPage';
 import SnippetsPage from './pages/SnippetsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
+import ProfilePage from './pages/ProfilePage';
 import { db } from './firebase';
 
 /**
@@ -180,6 +181,7 @@ function App() {
         <Route path="/resources" element={<ResourcesPage />} />
         <Route path="/snippets" element={<SnippetsPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
         {/* Fallback route */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

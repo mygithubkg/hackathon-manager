@@ -9,7 +9,8 @@ import {
     Users,
     BookOpen,
     Bell,
-    ChevronRight
+    ChevronRight,
+    UserCircle
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -132,6 +133,15 @@ const MobileDock = ({ onTeamClick, renderNotifications }) => {
                                     onClick={() => {
                                         setMoreOpen(false);
                                         navigate('/analytics');
+                                    }}
+                                />
+                                <MoreRow
+                                    icon={UserCircle}
+                                    label="Profile"
+                                    description="Manage your identity settings"
+                                    onClick={() => {
+                                        setMoreOpen(false);
+                                        navigate('/profile');
                                     }}
                                 />
 

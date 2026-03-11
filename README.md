@@ -233,6 +233,17 @@ Note: This section covers all project files present in the working tree except g
 
 ### `src/utils/`
 
+#### `src/utils/logActivity.js`
+- Purpose: activity logging service for Firestore
+- Functions defined:
+    - `logActivity()`
+
+#### `src/utils/relativeTime.js`
+- Purpose: timestamp formatting helpers for readable relative times
+- Functions defined:
+    - `toDate(value)`
+    - `getRelativeTime(timestamp)`
+
 #### `src/utils/security.js`
 - Purpose: security helper library
 - Functions/classes defined:
@@ -270,6 +281,12 @@ Note: This section covers all project files present in the working tree except g
 
 ### `src/pages/`
 
+#### `src/pages/AnalyticsPage.jsx`
+- Purpose: project and activity analytics dashboard
+- Functions defined:
+    - `StatCard()`
+    - `AnalyticsPage()`
+
 #### `src/pages/DashboardPage.jsx`
 - Purpose: authenticated dashboard orchestration page
 - Functions defined:
@@ -293,7 +310,64 @@ Note: This section covers all project files present in the working tree except g
     - `TeamCard({ team, isSolo })`
     - `ActionCard({ title, icon, onClick, colorClass })`
 
+#### `src/pages/ResourcesPage.jsx`
+- Purpose: global resource and link management page
+- Functions defined:
+    - `parseAddedAt(value)`
+    - `formatAddedAt(value)`
+    - `getResourceIcon(type)`
+    - `getReadableFirestoreError(listenerError)`
+    - `ResourcesPage()`
+    - `resetAddForm()`
+    - `closeAddModal()`
+    - `openAddModal()`
+    - `validateForm()`
+    - `handleAddResource()`
+    - `handleCopyResource()`
+    - `ResourceCard({ resource })`
+
+#### `src/pages/SnippetsPage.jsx`
+- Purpose: code snippet management with syntax highlighting
+- Functions defined:
+    - `getLanguageMeta(language)`
+    - `toDate(value)`
+    - `hasEditedLabel(createdAt, updatedAt)`
+    - `getInitials(name)`
+    - `getReadableFirestoreError(listenerError)`
+    - `SnippetModal()`
+    - `SnippetsPage()`
+    - `resetModalForm()`
+    - `openCreateModal()`
+    - `openEditModal()`
+    - `closeModal()`
+    - `handleSubmitSnippet()`
+    - `handleTogglePinned()`
+    - `handleDeleteSnippet()`
+    - `handleCopy()`
+    - `toggleExpanded()`
+    - `renderContentBlock()`
+
+#### `src/pages/TodoPage.jsx`
+- Purpose: calendar-based task management
+- Functions defined:
+    - `formatDateKey(dateValue)`
+    - `isOverdue(dueDate, completed)`
+    - `getReadableFirestoreError(listenerError)`
+    - `getWeekDates(selectedDate)`
+    - `TodoPage()`
+    - `handleAddTodo()`
+    - `handleToggleCompleted()`
+    - `handleDeleteTodo()`
+    - `tileContent()`
+
 ### `src/components/`
+
+#### `src/components/ActivityFeed.jsx`
+- Purpose: timeline display for project activities
+- Functions defined:
+    - `getActivityDescription(log)`
+    - `getInitials(name)`
+    - `ActivityFeed({ logs, showProject, emptyMessage })`
 
 #### `src/components/AddModal.jsx`
 - Purpose: create/edit project modal with validation and resource embedding
@@ -321,6 +395,15 @@ Note: This section covers all project files present in the working tree except g
 - Functions defined:
     - `NavItem({ icon, label, active, onClick, badge, collapsed })`
     - `DesktopSidebar({ user, currentTeam, onLogout, onAddClick, onTeamClick, renderNotifications })`
+
+#### `src/components/GlobalSearch.jsx`
+- Purpose: command palette for deep searching across entities
+- Functions defined:
+    - `highlightMatch(text, query)`
+    - `GlobalSearch({ hackathons, todos, snippets, activityLogs })`
+    - `handleShortcut()`
+    - `onSelect()`
+    - `handleNav()`
 
 #### `src/components/HackathonCard.jsx`
 - Purpose: main project card with multi-tab interactive controls
@@ -413,6 +496,14 @@ Note: This section covers all project files present in the working tree except g
     - `DashboardPage`
 - `/teams` while logged in:
     - `TeamsPage`
+- `/todo` while logged in:
+    - `TodoPage`
+- `/resources` while logged in:
+    - `ResourcesPage`
+- `/snippets` while logged in:
+    - `SnippetsPage`
+- `/analytics` while logged in:
+    - `AnalyticsPage`
 - `*`:
     - redirect to `/`
 

@@ -5,6 +5,7 @@ import App from './App.jsx'
 import { AuthProvider } from './contexts/AuthContext'
 import { TeamProvider } from './contexts/TeamContext'
 import './index.css'
+import './utils/migrateTeams'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

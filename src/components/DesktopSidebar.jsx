@@ -9,9 +9,12 @@ import {
     Clipboard,
     Plus,
     LogOut,
-    Command
+    Command,
+    UserCircle
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { usePendingRequests } from '../hooks/useFirestore';
+import { useTeam } from '../contexts/TeamContext';
 
 const NavItem = ({ icon: Icon, label, active, onClick, badge, collapsed }) => (
     <button
@@ -40,7 +43,12 @@ const NavItem = ({ icon: Icon, label, active, onClick, badge, collapsed }) => (
                 className="absolute left-0 w-1 h-6 bg-indigo-500 rounded-r-full"
             />
         )}
-        {badge && (
+        {badge && badge !== true && (
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full px-2 py-0.5 text-[10px] font-bold bg-amber-500/20 text-amber-500 border border-amber-500/20 shadow-[0_0_8px_rgba(245,158,11,0.3)]">
+                {badge}
+            </div>
+        )}
+        {badge === true && (
             <div className="absolute right-2 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
         )}
     </button>
@@ -57,6 +65,10 @@ const DesktopSidebar = ({
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
     const navigate = useNavigate();
     const location = useLocation();
+
+    const { isAdmin } = useTeam();
+    const { pending } = usePendingRequests(currentTeam?.id);
+    const pendingCount = pending?.length || 0;
 
     const handleTeamsClick = () => {
         if (onTeamClick) {
@@ -108,7 +120,7 @@ const DesktopSidebar = ({
                     label="Teams"
                     active={location.pathname === '/teams'}
                     onClick={handleTeamsClick}
-                    badge={currentTeam ? 'Active' : ''}
+                    badge={isAdmin && pendingCount > 0 ? pendingCount : (currentTeam ? true : '')}
                     collapsed={isSidebarCollapsed}
                 />
                 <NavItem
@@ -137,6 +149,13 @@ const DesktopSidebar = ({
                     label="Analytics"
                     active={location.pathname === '/analytics'}
                     onClick={() => navigate('/analytics')}
+                    collapsed={isSidebarCollapsed}
+                />
+                <NavItem
+                    icon={UserCircle}
+                    label="Profile"
+                    active={location.pathname === '/profile'}
+                    onClick={() => navigate('/profile')}
                     collapsed={isSidebarCollapsed}
                 />
 

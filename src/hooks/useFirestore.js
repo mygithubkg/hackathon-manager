@@ -202,6 +202,45 @@ const useFirestore = (collectionName) => {
 export default useFirestore;
 
 /**
+ * Hook to listen for pending join requests for a specific team
+ * @param {string} teamId
+ * @returns {{pending: Array<import('../types/firestoreSchema').PendingMember>, loading: boolean}}
+ */
+export const usePendingRequests = (teamId) => {
+  const [pending, setPending] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const { currentUser } = useAuth();
+
+  useEffect(() => {
+    if (!teamId || !currentUser) {
+      setPending([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    const teamRef = doc(db, 'teams', teamId);
+    
+    const unsubscribe = onSnapshot(teamRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setPending(data.pendingMembers || []);
+      } else {
+        setPending([]);
+      }
+      setLoading(false);
+    }, (err) => {
+      console.error("Error fetching pending requests:", err);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [teamId, currentUser]);
+
+  return { pending, loading };
+};
+
+/**
  * MIGRATION NOTES:
  * 
  * Old (useLocalStorage):
